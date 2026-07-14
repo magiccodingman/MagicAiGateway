@@ -42,6 +42,7 @@ builder.Services.AddSingleton<IAiBackendAdapter, LlamaCppBackendAdapter>();
 builder.Services.AddSingleton<IFabricPeerTrustProvider, NodePeerTrustProvider>();
 builder.Services.AddHostedService<BackendMonitorService>();
 builder.Services.AddHostedService<GatewayConnectionService>();
+builder.Services.AddHostedService<HttpGatewayHeartbeatService>();
 builder.Services.AddMagicFabricAuthentication();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
