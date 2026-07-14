@@ -55,3 +55,20 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Visual Studio user files (harmless even if you don't use VS)
+.vs/
+*.user
+*.rsuser
+*.suo
+
+# VS Code
+.vscode/
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
