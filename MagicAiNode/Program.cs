@@ -23,6 +23,9 @@ builder.WebHost.ConfigureKestrel(options =>
         https.ServerCertificateSelector = (_, _) => certificateStore.CurrentServerCertificate;
         https.ClientCertificateMode = ClientCertificateMode.AllowCertificate;
         https.CheckCertificateRevocation = false;
+        // The fabric uses its own private CA. Accept the certificate at the TLS layer,
+        // then perform full chain and peer-identity validation in FabricAuthenticationHandler.
+        https.ClientCertificateValidation = (_, _, _) => true;
     });
 });
 
