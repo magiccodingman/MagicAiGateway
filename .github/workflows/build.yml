@@ -14,5 +14,12 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - run: dotnet restore MagicAiGateway.sln
-      - run: dotnet build MagicAiGateway.sln --configuration Release --no-restore
+      - name: Build
+        shell: bash
+        run: |
+          if ! dotnet build MagicAiGateway.sln --configuration Release --no-restore > build.log 2>&1; then
+            grep -E "error (CS|NU|NETSDK)|Build FAILED|[0-9]+ Error\(s\)" build.log || cat build.log
+            exit 1
+          fi
+          cat build.log
       - run: dotnet test SharedMagic.Tests/SharedMagic.Tests.csproj --configuration Release --no-build
