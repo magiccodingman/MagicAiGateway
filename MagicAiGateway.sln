@@ -4,7 +4,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicAiApi", "MagicAiApi\Ma
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicAiNode", "MagicAiNode\MagicAiNode.csproj", "{CCD37535-D1DF-40DA-A228-4964B42A2640}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharedServices", "SharedServices\SharedServices.csproj", "{1A493FF3-7174-4567-BABB-30799EBCCF92}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharedMagic", "SharedMagic\SharedMagic.csproj", "{E5FDC0F0-8EE0-4A9C-BDA8-5F31D87059E2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -20,9 +20,9 @@ Global
 		{CCD37535-D1DF-40DA-A228-4964B42A2640}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CCD37535-D1DF-40DA-A228-4964B42A2640}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CCD37535-D1DF-40DA-A228-4964B42A2640}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1A493FF3-7174-4567-BABB-30799EBCCF92}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1A493FF3-7174-4567-BABB-30799EBCCF92}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1A493FF3-7174-4567-BABB-30799EBCCF92}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1A493FF3-7174-4567-BABB-30799EBCCF92}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E5FDC0F0-8EE0-4A9C-BDA8-5F31D87059E2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E5FDC0F0-8EE0-4A9C-BDA8-5F31D87059E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E5FDC0F0-8EE0-4A9C-BDA8-5F31D87059E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E5FDC0F0-8EE0-4A9C-BDA8-5F31D87059E2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
