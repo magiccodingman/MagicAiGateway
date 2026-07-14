@@ -265,6 +265,7 @@ public sealed class GatewayConnectionService(
                 {
                     webSocket.HttpVersion = HttpVersion.Version11;
                     webSocket.HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                    webSocket.ClientCertificates.Add(nodeCertificate);
                     webSocket.RemoteCertificateValidationCallback = (_, certificate, _, _) =>
                         ValidateGatewayCertificate(certificate, root, state.GatewayId);
                 };
