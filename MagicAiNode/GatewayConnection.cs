@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Options;
 using SharedMagic.Configuration;
@@ -257,9 +258,13 @@ public sealed class GatewayConnectionService(
         var connection = new HubConnectionBuilder()
             .WithUrl(new Uri(new Uri(state.GatewayBaseUri.TrimEnd('/') + "/"), "fabric/v1/hub"), options =>
             {
+                options.Transports = HttpTransportType.WebSockets;
+                options.SkipNegotiation = true;
                 options.ClientCertificates.Add(nodeCertificate);
                 options.WebSocketConfiguration = webSocket =>
                 {
+                    webSocket.HttpVersion = HttpVersion.Version11;
+                    webSocket.HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
                     webSocket.RemoteCertificateValidationCallback = (_, certificate, _, _) =>
                         ValidateGatewayCertificate(certificate, root, state.GatewayId);
                 };
