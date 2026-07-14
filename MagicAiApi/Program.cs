@@ -1,23 +1,81 @@
+using Microsoft.AspNetCore.Server.Kestrel.Https;
+using Microsoft.Extensions.Options;
+using SharedMagic.Configuration;
+using SharedMagic.Discovery;
+using SharedMagic.Proxy;
+using SharedMagic.Routing;
+using SharedMagic.Security;
+using MagicAiApi;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+var gatewayOptions = builder.Configuration.GetSection(GatewayOptions.SectionName).Get<GatewayOptions>() ?? new();
+var securityOptions = builder.Configuration.GetSection(FabricSecurityOptions.SectionName).Get<FabricSecurityOptions>() ?? new();
+var discoveryOptions = builder.Configuration.GetSection(DiscoveryOptions.SectionName).Get<DiscoveryOptions>() ?? new();
+var queueOptions = builder.Configuration.GetSection(QueueOptions.SectionName).Get<QueueOptions>() ?? new();
+var stateDirectory = FabricStateFiles.ResolveDirectory(securityOptions.StateDirectory, builder.Environment.ContentRootPath);
+var identity = FabricStateFiles.LoadOrCreateIdentity(stateDirectory, gatewayOptions.Name, "gateway");
+var certificateAuthority = new GatewayCertificateAuthority(stateDirectory, identity, securityOptions);
 
-builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+builder.WebHost.ConfigureKestrel(options =>
 {
-    app.MapOpenApi();
+    options.ConfigureHttpsDefaults(https =>
+    {
+        https.ServerCertificateSelector = (_, _) => certificateAuthority.ServerCertificate;
+        https.ClientCertificateMode = ClientCertificateMode.AllowCertificate;
+        https.CheckCertificateRevocation = false;
+    });
+});
+
+builder.Services.Configure<GatewayOptions>(builder.Configuration.GetSection(GatewayOptions.SectionName));
+builder.Services.Configure<FabricSecurityOptions>(builder.Configuration.GetSection(FabricSecurityOptions.SectionName));
+builder.Services.Configure<DiscoveryOptions>(builder.Configuration.GetSection(DiscoveryOptions.SectionName));
+builder.Services.Configure<QueueOptions>(builder.Configuration.GetSection(QueueOptions.SectionName));
+builder.Services.AddSingleton(certificateAuthority);
+builder.Services.AddSingleton(identity);
+builder.Services.AddSingleton(queueOptions);
+builder.Services.AddSingleton<GatewayPairingRegistry>();
+builder.Services.AddSingleton<PairingChallengeStore>();
+builder.Services.AddSingleton<GatewayNodeRegistry>();
+builder.Services.AddSingleton<IFabricPeerTrustProvider, GatewayPeerTrustProvider>();
+builder.Services.AddSingleton<IRequestScheduler<GatewayNodeTarget>, LeastBusyRequestScheduler<GatewayNodeTarget>>();
+builder.Services.AddSingleton<IMagicToolRegistry, EmptyMagicToolRegistry>();
+builder.Services.AddSingleton<MagicProtocolDispatcher>();
+builder.Services.AddSingleton<GatewayProxyInvoker>();
+builder.Services.AddSingleton<GatewayNodeClient>();
+builder.Services.AddHostedService<NodeLeaseMonitorService>();
+builder.Services.AddHostedService<StaticNodeMonitorService>();
+builder.Services.AddMagicFabricAuthentication();
+builder.Services.AddSignalR(options => options.StatefulReconnectBufferSize = 100_000);
+builder.Services.AddControllers();
+builder.Services.AddOpenApi();
+builder.Services.AddHttpForwarder();
+
+if (discoveryOptions.Enabled)
+{
+    builder.Services.AddSingleton(new MdnsAdvertisement(
+        $"{gatewayOptions.Name}-{identity.InstanceId:N}",
+        discoveryOptions.GatewayServiceType,
+        checked((ushort)discoveryOptions.AdvertisedHttpsPort),
+        new Dictionary<string, string>
+        {
+            ["name"] = gatewayOptions.Name,
+            ["gatewayId"] = identity.InstanceId.ToString(),
+            ["clusterId"] = identity.ClusterId.ToString(),
+            ["protocolVersion"] = "1",
+            ["tls"] = "true"
+        }));
+    builder.Services.AddHostedService<MdnsAdvertiserHostedService>();
 }
 
-app.UseHttpsRedirection();
-
+var app = builder.Build();
+if (app.Environment.IsDevelopment()) app.MapOpenApi();
+app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
-
+app.MapHub<GatewayFabricHub>("/fabric/v1/hub", options => options.AllowStatefulReconnects = true)
+    .RequireAuthorization(FabricAuthenticationDefaults.Policy);
+GatewayProxyEndpoint.Map(app);
 app.Run();
+
+public partial class Program;
