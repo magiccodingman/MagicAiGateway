@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Makaretu.Dns;
@@ -17,7 +19,24 @@ public enum GatewayCandidateKind
 public sealed record GatewayCandidate(Uri BaseUri, GatewayCandidateKind Kind, string Source)
 {
     public bool IsLocal =>
-        Kind is GatewayCandidateKind.Loopback or GatewayCandidateKind.Mdns || BaseUri.IsLoopback;
+        Kind is GatewayCandidateKind.Loopback or GatewayCandidateKind.Mdns ||
+        BaseUri.IsLoopback ||
+        BaseUri.Host.EndsWith(".local", StringComparison.OrdinalIgnoreCase) ||
+        IsPrivateAddress(BaseUri.Host);
+
+    private static bool IsPrivateAddress(string host)
+    {
+        if (!IPAddress.TryParse(host, out var address)) return false;
+        if (IPAddress.IsLoopback(address) || address.IsIPv6LinkLocal || address.IsIPv6SiteLocal) return true;
+        if (address.AddressFamily != AddressFamily.InterNetwork) return false;
+
+        var bytes = address.GetAddressBytes();
+        return bytes[0] == 10 ||
+               bytes[0] == 127 ||
+               bytes[0] == 169 && bytes[1] == 254 ||
+               bytes[0] == 172 && bytes[1] is >= 16 and <= 31 ||
+               bytes[0] == 192 && bytes[1] == 168;
+    }
 }
 
 public interface IGatewayEndpointSource
