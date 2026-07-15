@@ -4,7 +4,7 @@ This file records invariants future coding agents must preserve while extending 
 
 ## System shape
 
-`MagicAiApi` is the client-facing OpenAI-compatible gateway. `MagicAiNode` runs next to one or more vLLM/llama.cpp instances. `SharedMagic` contains provider-neutral contracts, request inspection, scheduling, discovery, and fabric security primitives.
+`MagicAiApi` is the client-facing OpenAI-compatible gateway. `MagicAiNode` runs next to one or more vLLM/llama.cpp instances. `MagicAiGateway.Client` is the public, NuGet-ready SDK for gateway protocol contracts, endpoint discovery, trust, connection resolution, and client transport. `SharedMagic` contains server-side/provider-neutral contracts, request inspection, scheduling, fabric advertisement, and fabric security primitives.
 
 There are two routing layers:
 
@@ -12,6 +12,18 @@ There are two routing layers:
 2. `MagicAiNode`: model name -> healthy local backend instances.
 
 Both layers use `IRequestScheduler<TTarget>` and destination leases. Leases must be disposed on success, cancellation, client disconnect, and failure so active-request accounting and queue permits cannot leak.
+
+## Client SDK boundary
+
+`MagicAiGateway.Client` must remain usable without referencing `MagicAiApi`, `MagicAiNode`, `SharedMagic`, ASP.NET Core, YARP, SignalR, or server hosting infrastructure. Server projects may reference the client package for public protocol and discovery primitives; the client package must never reference a server project.
+
+The client facade stays small. Connection resolution, raw transport, and future high-level APIs belong behind focused interfaces rather than accumulating methods on one god object. Preserve both dependency-injection registration and a non-DI factory so console, desktop, service, and future interop hosts use the same implementation.
+
+Raw client requests use relative gateway paths. Do not turn the SDK into a generic arbitrary-URL HTTP client. Buffered and streaming calls must preserve provider extension fields and response bytes without reconstructing OpenAI payloads.
+
+Client discovery order is configurable, with local-first as the default: loopback, last-known trusted endpoint, mDNS/DNS-SD, then configured remote fallback. An explicit endpoint override disables discovery. The SDK does not run node-style heartbeat or SignalR background services; it resolves lazily or through an explicit `ConnectAsync` call and re-resolves after connection failure.
+
+Public gateway certificates use normal platform trust. Private local gateway trust is application-owned and portable: an allowed first-use bootstrap is followed by validation against the cluster root and gateway GUID identity, then persisted trust binds gateway name, gateway ID, cluster ID, and root CA. Never replace this with a permanent accept-any-certificate callback. First-use trust is weaker and must remain limited/configurable and clearly documented.
 
 ## Trust model
 
