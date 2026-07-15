@@ -60,10 +60,11 @@ public sealed class RawGatewayClient(GatewayConnection connection) : IRawGateway
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ValidateRequestUri(request.RequestUri);
+        var relativeUri = request.RequestUri;
+        ValidateRequestUri(relativeUri);
 
         var client = await connection.GetHttpClientAsync(cancellationToken).ConfigureAwait(false);
-        request.RequestUri = new Uri(connection.Current!.BaseUri, request.RequestUri);
+        request.RequestUri = new Uri(connection.Current!.BaseUri, relativeUri!);
         try
         {
             return await client.SendAsync(request, completionOption, cancellationToken).ConfigureAwait(false);
@@ -75,19 +76,24 @@ public sealed class RawGatewayClient(GatewayConnection connection) : IRawGateway
         }
     }
 
-    public Task<HttpResponseMessage> GetAsync(string relativePath, CancellationToken cancellationToken = default) =>
-        SendAsync(new HttpRequestMessage(HttpMethod.Get, relativePath), cancellationToken: cancellationToken);
+    public async Task<HttpResponseMessage> GetAsync(
+        string relativePath,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, relativePath);
+        return await SendAsync(request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
 
-    public Task<HttpResponseMessage> PostJsonAsync<T>(
+    public async Task<HttpResponseMessage> PostJsonAsync<T>(
         string relativePath,
         T value,
         CancellationToken cancellationToken = default)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, relativePath)
+        using var request = new HttpRequestMessage(HttpMethod.Post, relativePath)
         {
             Content = JsonContent.Create(value)
         };
-        return SendAsync(request, cancellationToken: cancellationToken);
+        return await SendAsync(request, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<GatewayResponseStream> SendStreamingAsync(
