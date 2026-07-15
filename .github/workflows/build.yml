@@ -29,3 +29,4 @@ jobs:
           path: build.log
       - run: dotnet test SharedMagic.Tests/SharedMagic.Tests.csproj --configuration Release --no-build
       - run: dotnet test MagicAiGateway.Client.Tests/MagicAiGateway.Client.Tests.csproj --configuration Release --no-build
+      - run: dotnet pack MagicAiGateway.Client/MagicAiGateway.Client.csproj --configuration Release --no-build --output artifacts
