@@ -16,7 +16,8 @@ public enum GatewayCandidateKind
 
 public sealed record GatewayCandidate(Uri BaseUri, GatewayCandidateKind Kind, string Source)
 {
-    public bool IsLocal => Kind is GatewayCandidateKind.Loopback or GatewayCandidateKind.Mdns || BaseUri.IsLoopback;
+    public bool IsLocal =>
+        Kind is GatewayCandidateKind.Loopback or GatewayCandidateKind.Mdns || BaseUri.IsLoopback;
 }
 
 public interface IGatewayEndpointSource
@@ -64,7 +65,11 @@ public sealed class MdnsBrowser : IDisposable
                 var discovered = new DiscoveredFabricService(instance, _serviceType, server.Target.ToString(), server.Port);
                 if (_services.TryAdd(instance, discovered))
                 {
-                    _logger.LogInformation("Discovered Magic AI Gateway {Instance} at {Host}:{Port}.", instance, discovered.Host, discovered.Port);
+                    _logger.LogInformation(
+                        "Discovered Magic AI Gateway {Instance} at {Host}:{Port}.",
+                        instance,
+                        discovered.Host,
+                        discovered.Port);
                     ServiceDiscovered?.Invoke(this, discovered);
                 }
             }
@@ -96,7 +101,10 @@ public sealed class LoopbackGatewayEndpointSource(int order = 0) : IGatewayEndpo
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        yield return new GatewayCandidate(new Uri("https://localhost:7443"), GatewayCandidateKind.Loopback, "loopback");
+        yield return new GatewayCandidate(
+            new Uri("https://localhost:7443"),
+            GatewayCandidateKind.Loopback,
+            "loopback");
         await Task.CompletedTask;
     }
 }
@@ -114,7 +122,10 @@ public sealed class ConfiguredGatewayEndpointSource(
         foreach (var endpoint in _endpoints)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            yield return new GatewayCandidate(Normalize(endpoint), GatewayCandidateKind.Configured, "configured");
+            yield return new GatewayCandidate(
+                Normalize(endpoint),
+                GatewayCandidateKind.Configured,
+                "configured");
         }
 
         await Task.CompletedTask;
@@ -138,25 +149,32 @@ public sealed class MdnsGatewayEndpointSource(
         var channel = Channel.CreateUnbounded<GatewayCandidate>();
         using var browser = new MdnsBrowser(serviceType, expectedGatewayName, logger);
         browser.ServiceDiscovered += (_, service) =>
-            channel.Writer.TryWrite(new GatewayCandidate(service.ToHttpsUri(), GatewayCandidateKind.Mdns, service.InstanceName));
+            channel.Writer.TryWrite(new GatewayCandidate(
+                service.ToHttpsUri(),
+                GatewayCandidateKind.Mdns,
+                service.InstanceName));
         browser.Start();
 
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(timeout);
 
-        try
+        while (true)
         {
-            while (await channel.Reader.WaitToReadAsync(timeoutSource.Token).ConfigureAwait(false))
+            bool available;
+            try
             {
-                while (channel.Reader.TryRead(out var candidate))
-                {
-                    yield return candidate;
-                }
+                available = await channel.Reader.WaitToReadAsync(timeoutSource.Token).ConfigureAwait(false);
             }
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            yield break;
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                yield break;
+            }
+
+            if (!available) yield break;
+            while (channel.Reader.TryRead(out var candidate))
+            {
+                yield return candidate;
+            }
         }
     }
 }
