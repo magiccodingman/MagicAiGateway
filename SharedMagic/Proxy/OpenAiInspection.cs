@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Text;
 using System.Text.Json;
+using MagicAiGateway.Protocol;
 
 namespace SharedMagic.Proxy;
 
@@ -66,7 +67,7 @@ public static class OpenAiRequestInspector
                 ? modelElement.GetString()
                 : null;
             var stream = root.TryGetProperty("stream", out var streamElement) && streamElement.ValueKind == JsonValueKind.True;
-            var hasMagic = root.TryGetProperty("magic_ai_gateway", out var magicElement);
+            var hasMagic = root.TryGetProperty(MagicAiGatewayProtocol.PropertyName, out var magicElement);
             var magicObject = hasMagic && magicElement.ValueKind == JsonValueKind.Object;
             var magicNull = hasMagic && magicElement.ValueKind == JsonValueKind.Null;
             var magicInvalid = hasMagic && !magicObject && !magicNull;
@@ -106,7 +107,7 @@ public static class OpenAiRequestInspector
 
             using var document = JsonDocument.Parse(new ReadOnlyMemory<byte>(source.GetBuffer(), 0, checked((int)source.Length)));
             if (document.RootElement.ValueKind != JsonValueKind.Object ||
-                !document.RootElement.TryGetProperty("magic_ai_gateway", out var magic) ||
+                !document.RootElement.TryGetProperty(MagicAiGatewayProtocol.PropertyName, out var magic) ||
                 magic.ValueKind != JsonValueKind.Null)
             {
                 return null;
@@ -118,7 +119,7 @@ public static class OpenAiRequestInspector
                 writer.WriteStartObject();
                 foreach (var property in document.RootElement.EnumerateObject())
                 {
-                    if (property.NameEquals("magic_ai_gateway")) continue;
+                    if (property.NameEquals(MagicAiGatewayProtocol.PropertyName)) continue;
                     property.WriteTo(writer);
                 }
                 writer.WriteEndObject();
