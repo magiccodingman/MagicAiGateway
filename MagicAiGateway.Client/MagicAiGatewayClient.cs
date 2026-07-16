@@ -1,3 +1,4 @@
+using MagicAiGateway.Client.Authentication;
 using MagicAiGateway.Client.Configuration;
 using MagicAiGateway.Client.Connection;
 using MagicAiGateway.Client.Security;
@@ -31,14 +32,21 @@ public sealed class MagicAiGatewayClient : IMagicAiGatewayClient
     public IGatewayConnection Connection { get; }
     public IRawGatewayClient Raw { get; }
 
-    public static MagicAiGatewayClient Create(MagicAiGatewayClientOptions options)
+    public static MagicAiGatewayClient Create(
+        MagicAiGatewayClientOptions options,
+        IGatewayCredentialProvider? credentialProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
 
-        var trustStore = new FileGatewayTrustStore(options);
-        var connection = new GatewayConnection(options, trustStore, NullLoggerFactory.Instance);
-        var raw = new RawGatewayClient(connection);
+        credentialProvider ??= GatewayCredentialProviderFactory.Create(options.ApiKey);
+        var transportOptions = options.CloneWithoutCredentials();
+        var trustStore = new FileGatewayTrustStore(transportOptions);
+        var connection = new GatewayConnection(
+            transportOptions,
+            trustStore,
+            NullLoggerFactory.Instance);
+        var raw = new RawGatewayClient(connection, credentialProvider);
         return new MagicAiGatewayClient(connection, raw, ownsConnection: true);
     }
 
