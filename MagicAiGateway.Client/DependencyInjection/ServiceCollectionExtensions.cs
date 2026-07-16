@@ -1,6 +1,8 @@
 using MagicAiGateway.Client.Authentication;
+using MagicAiGateway.Client.Chat;
 using MagicAiGateway.Client.Configuration;
 using MagicAiGateway.Client.Connection;
+using MagicAiGateway.Client.ProtocolServices;
 using MagicAiGateway.Client.Security;
 using MagicAiGateway.Client.Transport;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,9 +35,15 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IGatewayConnection>(provider => provider.GetRequiredService<GatewayConnection>());
         services.AddSingleton<RawGatewayClient>();
         services.AddSingleton<IRawGatewayClient>(provider => provider.GetRequiredService<RawGatewayClient>());
+        services.AddSingleton<MagicChatClient>();
+        services.AddSingleton<IMagicChatClient>(provider => provider.GetRequiredService<MagicChatClient>());
+        services.AddSingleton<MagicProtocolClient>();
+        services.AddSingleton<IMagicProtocolClient>(provider => provider.GetRequiredService<MagicProtocolClient>());
         services.AddSingleton<IMagicAiGatewayClient>(provider => new MagicAiGatewayClient(
             provider.GetRequiredService<GatewayConnection>(),
             provider.GetRequiredService<IRawGatewayClient>(),
+            provider.GetRequiredService<IMagicChatClient>(),
+            provider.GetRequiredService<IMagicProtocolClient>(),
             ownsConnection: false));
 
         return services;
