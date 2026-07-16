@@ -13,6 +13,7 @@ public sealed class HttpGatewayRunOutput(
 {
     private readonly SemaphoreSlim _writeGate = new(1, 1);
     private int _completed;
+    private int _contentPublished;
 
     public bool HasStarted => httpContext.Response.HasStarted;
     public bool IsCompleted => Volatile.Read(ref _completed) != 0;
@@ -26,6 +27,7 @@ public sealed class HttpGatewayRunOutput(
         switch (update)
         {
             case MagicContentDelta content:
+                if (!string.IsNullOrEmpty(content.Text)) Interlocked.Exchange(ref _contentPublished, 1);
                 await WriteDataAsync(new MagicChatCompletionChunk
                 {
                     Choices =
@@ -40,6 +42,10 @@ public sealed class HttpGatewayRunOutput(
                 break;
 
             case MagicOpenAiChunkUpdate openAi:
+                if (openAi.Chunk.Choices.Any(static choice => !string.IsNullOrEmpty(choice.Delta.Content)))
+                {
+                    Interlocked.Exchange(ref _contentPublished, 1);
+                }
                 await WriteDataAsync(openAi.Chunk, cancellationToken).ConfigureAwait(false);
                 break;
 
@@ -79,7 +85,7 @@ public sealed class HttpGatewayRunOutput(
         var content = choice?.Message.Content is { ValueKind: JsonValueKind.String } element
             ? element.GetString()
             : null;
-        if (!string.IsNullOrEmpty(content))
+        if (Volatile.Read(ref _contentPublished) == 0 && !string.IsNullOrEmpty(content))
         {
             await WriteDataAsync(new MagicChatCompletionChunk
             {
@@ -152,10 +158,13 @@ public sealed class HttpGatewayRunOutput(
         }
 
         httpContext.Response.StatusCode = StatusCodes.Status200OK;
-        await WriteNamedEventAsync(
-            MagicStreamEventTypes.RunFailed,
-            new { error, magic_ai_gateway = metadata },
-            cancellationToken).ConfigureAwait(false);
+        if (responseMode == MagicResponseModes.Enriched)
+        {
+            await WriteNamedEventAsync(
+                MagicStreamEventTypes.RunFailed,
+                new { error, magic_ai_gateway = metadata },
+                cancellationToken).ConfigureAwait(false);
+        }
         await WriteDataAsync(new MagicChatCompletionChunk
         {
             Choices =
