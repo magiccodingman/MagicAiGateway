@@ -1,3 +1,4 @@
+using MagicAiGateway.Protocol;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Features;
@@ -33,7 +34,7 @@ public static class GatewayProxyEndpoint
         IRequestScheduler<GatewayNodeTarget> scheduler,
         GatewayProxyInvoker invoker,
         IMagicToolRegistry toolRegistry,
-        MagicProtocolDispatcher protocolDispatcher,
+        MagicProtocolHost protocolHost,
         IGatewayOperationResolver operationResolver,
         IAuthorizationService authorizationService,
         ILoggerFactory loggerFactory)
@@ -47,9 +48,9 @@ public static class GatewayProxyEndpoint
         {
             await WriteError(context, StatusCodes.Status400BadRequest,
                 new OpenAiErrorBody(new(
-                    "magic_ai_gateway must be either an object or null.",
+                    $"{MagicAiGatewayProtocol.PropertyName} must be either an object or null.",
                     "invalid_request_error",
-                    "magic_ai_gateway",
+                    MagicAiGatewayProtocol.PropertyName,
                     "invalid_gateway_envelope"))).ConfigureAwait(false);
             return;
         }
@@ -77,7 +78,7 @@ public static class GatewayProxyEndpoint
 
         if (inspection.HasMagicGatewayObject && inspection.MagicGatewayEnvelope is { } envelope)
         {
-            await protocolDispatcher.DispatchAsync(context, envelope, context.RequestAborted).ConfigureAwait(false);
+            await protocolHost.ExecuteAsync(context, envelope, context.RequestAborted).ConfigureAwait(false);
             return;
         }
 
