@@ -16,6 +16,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicAiGateway.Client.Tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicAiGateway.Protocol", "MagicAiGateway.Protocol\MagicAiGateway.Protocol.csproj", "{8D10DF03-50EC-4719-A418-9EBB1334D971}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicAiGateway.MCP", "MagicAiGateway.MCP\MagicAiGateway.MCP.csproj", "{87D747CB-A188-4F5D-A133-AD5286734ABE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicAiGateway.MCP.Package.Template", "MagicAiGateway.MCP.Package.Template\MagicAiGateway.MCP.Package.Template.csproj", "{E3F83537-ECD6-422D-868E-9F8EF37BC543}"
+EndProject
 Global
 		GlobalSection(SolutionConfigurationPlatforms) = preSolution
 				Debug|Any CPU = Debug|Any CPU
@@ -50,5 +54,13 @@ Global
 			{8D10DF03-50EC-4719-A418-9EBB1334D971}.Debug|Any CPU.Build.0 = Debug|Any CPU
 			{8D10DF03-50EC-4719-A418-9EBB1334D971}.Release|Any CPU.ActiveCfg = Release|Any CPU
 			{8D10DF03-50EC-4719-A418-9EBB1334D971}.Release|Any CPU.Build.0 = Release|Any CPU
+			{87D747CB-A188-4F5D-A133-AD5286734ABE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+			{87D747CB-A188-4F5D-A133-AD5286734ABE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+			{87D747CB-A188-4F5D-A133-AD5286734ABE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+			{87D747CB-A188-4F5D-A133-AD5286734ABE}.Release|Any CPU.Build.0 = Release|Any CPU
+			{E3F83537-ECD6-422D-868E-9F8EF37BC543}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+			{E3F83537-ECD6-422D-868E-9F8EF37BC543}.Debug|Any CPU.Build.0 = Debug|Any CPU
+			{E3F83537-ECD6-422D-868E-9F8EF37BC543}.Release|Any CPU.ActiveCfg = Release|Any CPU
+			{E3F83537-ECD6-422D-868E-9F8EF37BC543}.Release|Any CPU.Build.0 = Release|Any CPU
 		EndGlobalSection
 EndGlobal
