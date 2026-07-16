@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using MagicAiGateway.Client.Configuration;
-using MagicAiGateway.Client.Protocol;
+using MagicAiGateway.Protocol;
 
 namespace MagicAiGateway.Client.Security;
 
