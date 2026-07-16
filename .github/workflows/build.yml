@@ -21,6 +21,14 @@ jobs:
           status=$?
           cat build.log
           exit $status
+      - name: Publish NativeAOT MCP package template
+        run: >-
+          dotnet publish
+          MagicAiGateway.MCP.Package.Template/MagicAiGateway.MCP.Package.Template.csproj
+          --configuration Release
+          --runtime linux-x64
+          --self-contained true
+          --output artifacts/mcp-package-template
       - name: Upload build log
         if: failure()
         uses: actions/upload-artifact@v4

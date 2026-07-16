@@ -1,6 +1,0 @@
-@MagicAiGateway.MCP.Package.Template_HostAddress = http://localhost:5053
-
-GET {{MagicAiGateway.MCP.Package.Template_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
