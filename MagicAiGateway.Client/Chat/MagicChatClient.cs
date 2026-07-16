@@ -62,7 +62,10 @@ public sealed class MagicChatClient(
                 ResolveTimeout(normalized),
                 cancellationToken).ConfigureAwait(false);
             response.Response.EnsureSuccessStatusCode();
-            return new MagicChatStreamingSession(response, normalized.MagicAiGateway is not null);
+            return new MagicChatStreamingSession(
+                response,
+                httpRequest,
+                normalized.MagicAiGateway is not null);
         }
         catch
         {
@@ -101,6 +104,7 @@ public sealed class MagicChatClient(
 public sealed class MagicChatStreamingSession : IAsyncDisposable
 {
     private readonly GatewayResponseStream _response;
+    private readonly HttpRequestMessage _request;
     private readonly bool _requiresMagicCompletion;
     private readonly Channel<MagicChatStreamUpdate> _updates = Channel.CreateUnbounded<MagicChatStreamUpdate>(
         new UnboundedChannelOptions { SingleReader = false, SingleWriter = true });
@@ -109,9 +113,13 @@ public sealed class MagicChatStreamingSession : IAsyncDisposable
     private readonly CancellationTokenSource _disposeCancellation = new();
     private readonly Task _readerTask;
 
-    internal MagicChatStreamingSession(GatewayResponseStream response, bool requiresMagicCompletion)
+    internal MagicChatStreamingSession(
+        GatewayResponseStream response,
+        HttpRequestMessage request,
+        bool requiresMagicCompletion)
     {
         _response = response;
+        _request = request;
         _requiresMagicCompletion = requiresMagicCompletion;
         _readerTask = ReadAsync(_disposeCancellation.Token);
     }
@@ -202,6 +210,7 @@ public sealed class MagicChatStreamingSession : IAsyncDisposable
                                 eventName,
                                 payload,
                                 value => magicRun = value,
+                                value => reasoning.Append(value),
                                 cancellationToken).ConfigureAwait(false);
                         }
                     }
@@ -233,6 +242,7 @@ public sealed class MagicChatStreamingSession : IAsyncDisposable
         string eventName,
         string payload,
         Action<MagicRunMetadata> setRun,
+        Action<string> appendReasoning,
         CancellationToken cancellationToken)
     {
         if (eventName == MagicStreamEventTypes.RunCompleted)
@@ -254,8 +264,10 @@ public sealed class MagicChatStreamingSession : IAsyncDisposable
             root.TryGetProperty("text", out var text) &&
             text.ValueKind == JsonValueKind.String)
         {
+            var value = text.GetString() ?? string.Empty;
+            appendReasoning(value);
             await _updates.Writer.WriteAsync(
-                new MagicReasoningDelta(text.GetString() ?? string.Empty),
+                new MagicReasoningDelta(value),
                 cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -272,6 +284,7 @@ public sealed class MagicChatStreamingSession : IAsyncDisposable
         _disposeCancellation.Cancel();
         try { await _readerTask.ConfigureAwait(false); } catch { }
         await _response.DisposeAsync().ConfigureAwait(false);
+        _request.Dispose();
         _disposeCancellation.Dispose();
     }
 }
