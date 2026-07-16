@@ -89,9 +89,9 @@ Stopping one instance must not stop any other instance from the same library.
 
 ### Shutdown
 
-`magic_mcp_shutdown` stops all remaining instances. The host should call it before process termination or before attempting to release the library. No ABI call may race with library unloading.
+`magic_mcp_shutdown` stops all remaining instances. The host should call it before process termination. No ABI call may race with shutdown.
 
-ABI v1 recommends loading a package once for the lifetime of the host process rather than repeatedly loading and unloading the same native runtime.
+ABI v1 requires the package library to remain loaded for the lifetime of the host process. Hosts must not call `dlclose`, `FreeLibrary`, or an equivalent unload operation after loading a package. This uniform rule also matches NativeAOT, whose runtime does not support unloading a loaded NativeAOT shared library.
 
 ## Buffer ownership
 
