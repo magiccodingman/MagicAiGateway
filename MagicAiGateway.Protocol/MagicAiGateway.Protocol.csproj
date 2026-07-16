@@ -4,6 +4,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Description>Owned OpenAI-compatible and Magic AI Gateway protocol contracts.</Description>
+    <PackageId>MagicAiGateway.Protocol</PackageId>
+    <Title>Magic AI Gateway Protocol</Title>
+    <Description>Owned OpenAI-compatible and Magic AI Gateway wire contracts.</Description>
+    <Authors>MagicCodingMan</Authors>
+    <RepositoryUrl>https://github.com/magiccodingman/MagicAiGateway</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 </Project>
