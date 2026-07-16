@@ -12,6 +12,14 @@ This project is the C# implementation template for the [MagicAiGateway MCP Packa
 
 There is no HTTP server, Kestrel listener, controller routing, stdin protocol, stdout protocol, HTTPS redirection, or authorization middleware in the template. MagicAiGateway loads the compiled `.dll`, `.so`, or `.dylib` and communicates through the native ABI in `Runtime/MagicMcpExports.cs`.
 
+## Why `ModelContextProtocol` and not `ModelContextProtocol.AspNetCore`?
+
+The `ModelContextProtocol` package already provides the MCP server, Generic Host and dependency-injection integration, attributed tool discovery, generated tool schemas, invocation, cancellation, and protocol response handling needed by this template.
+
+`ModelContextProtocol.AspNetCore` builds on that package to add the ASP.NET Core HTTP transport. This package protocol does not expose HTTP, so including the ASP.NET Core package would add a transport and web application surface that MagicAiGateway deliberately replaces with its native in-process ABI.
+
+The developer experience still feels controller-like because tool classes receive constructor-injected services and expose attributed methods; the wire transport simply is not HTTP.
+
 ## The developer experience
 
 Most package development happens in `Program.cs`, `MCP/`, and your own service folders. The native ABI and transport plumbing under `Runtime/` are infrastructure and normally should not need modification.
@@ -149,6 +157,8 @@ dotnet publish -c Release -r win-x64
 Build on the target operating system unless your NativeAOT toolchain explicitly supports the desired cross-compilation path. The native artifact is placed under the RID-specific `bin/Release/net10.0/<rid>/publish/` directory.
 
 This project is a library, so `dotnet run` is not its normal execution model. A MagicAiGateway host or ABI test harness loads the published library and calls its exports.
+
+A NativeAOT package library remains loaded for the lifetime of the host process. Call `magic_mcp_shutdown` during host shutdown, but do not unload the library with `FreeLibrary`, `dlclose`, or an equivalent operation.
 
 ## Runtime behavior
 
