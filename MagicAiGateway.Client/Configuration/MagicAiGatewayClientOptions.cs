@@ -44,7 +44,21 @@ public sealed class MagicAiGatewayClientOptions
     // StaticApiKeyCredentialProvider so transport code remains credential-agnostic.
     public string? ApiKey { get; set; }
 
-    public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromMinutes(10);
+    /// <summary>Default logical timeout for ordinary OpenAI-compatible SDK calls.</summary>
+    public TimeSpan StandardRequestTimeout { get; set; } = TimeSpan.FromMinutes(3);
+
+    /// <summary>
+    /// Default transport timeout for Magic-managed runs. The server owns the logical run deadline,
+    /// so this is infinite unless the caller supplies cancellation or an explicit protocol timeout.
+    /// </summary>
+    public TimeSpan ManagedRequestTimeout { get; set; } = Timeout.InfiniteTimeSpan;
+
+    /// <summary>
+    /// Underlying HttpClient timeout. Keep infinite so per-request policies and server-owned Magic
+    /// deadlines are not accidentally cut off by a second hidden timer.
+    /// </summary>
+    public TimeSpan RequestTimeout { get; set; } = Timeout.InfiniteTimeSpan;
+
     public GatewayDiscoveryOptions Discovery { get; } = new();
     public GatewaySecurityOptions Security { get; } = new();
 
@@ -65,10 +79,9 @@ public sealed class MagicAiGatewayClientOptions
             throw new InvalidOperationException("EndpointOverride must be an absolute URI.");
         }
 
-        if (RequestTimeout <= TimeSpan.Zero)
-        {
-            throw new InvalidOperationException("RequestTimeout must be greater than zero.");
-        }
+        ValidateTimeout(StandardRequestTimeout, nameof(StandardRequestTimeout), allowInfinite: false);
+        ValidateTimeout(ManagedRequestTimeout, nameof(ManagedRequestTimeout), allowInfinite: true);
+        ValidateTimeout(RequestTimeout, nameof(RequestTimeout), allowInfinite: true);
 
         if (Discovery.Timeout <= TimeSpan.Zero)
         {
@@ -89,6 +102,8 @@ public sealed class MagicAiGatewayClientOptions
             ApplicationId = ApplicationId,
             ExpectedGatewayName = ExpectedGatewayName,
             EndpointOverride = EndpointOverride,
+            StandardRequestTimeout = StandardRequestTimeout,
+            ManagedRequestTimeout = ManagedRequestTimeout,
             RequestTimeout = RequestTimeout
         };
 
@@ -107,5 +122,14 @@ public sealed class MagicAiGatewayClientOptions
         clone.Security.StateDirectory = Security.StateDirectory;
         clone.Security.AllowInsecureLoopbackOnly = Security.AllowInsecureLoopbackOnly;
         return clone;
+    }
+
+    private static void ValidateTimeout(TimeSpan value, string name, bool allowInfinite)
+    {
+        if (allowInfinite && value == Timeout.InfiniteTimeSpan) return;
+        if (value <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException($"{name} must be greater than zero{(allowInfinite ? " or infinite" : string.Empty)}.");
+        }
     }
 }
