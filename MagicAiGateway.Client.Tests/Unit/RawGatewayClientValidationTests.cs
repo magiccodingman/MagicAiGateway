@@ -1,4 +1,5 @@
 using MagicAiGateway.Client.Configuration;
+using MagicAiGateway.Client.Connection;
 using MagicAiGateway.Client.Tests.Infrastructure;
 
 namespace MagicAiGateway.Client.Tests.Unit;
@@ -21,7 +22,7 @@ public sealed class RawGatewayClientValidationTests
                 HttpMethod.Get,
                 "https://example.com/v1/models")));
 
-        Assert.Equal(Connection.GatewayConnectionState.Disconnected, client.Connection.State);
+        Assert.Equal(GatewayConnectionState.Disconnected, client.Connection.State);
     }
 
     [Fact]
