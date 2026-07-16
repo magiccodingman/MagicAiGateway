@@ -39,7 +39,11 @@ public sealed class MagicAiGatewayClientOptions
     public string ApplicationId { get; set; } = "MagicAiGateway.Client";
     public string ExpectedGatewayName { get; set; } = "MagicAiGateway";
     public Uri? EndpointOverride { get; set; }
+
+    // Convenience compatibility option. The SDK converts this into a
+    // StaticApiKeyCredentialProvider so transport code remains credential-agnostic.
     public string? ApiKey { get; set; }
+
     public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromMinutes(10);
     public GatewayDiscoveryOptions Discovery { get; } = new();
     public GatewaySecurityOptions Security { get; } = new();
@@ -76,5 +80,32 @@ public sealed class MagicAiGatewayClientOptions
         {
             throw new InvalidOperationException("PinnedCertificateAuthority trust requires PinnedRootCertificateBase64.");
         }
+    }
+
+    internal MagicAiGatewayClientOptions CloneWithoutCredentials()
+    {
+        var clone = new MagicAiGatewayClientOptions
+        {
+            ApplicationId = ApplicationId,
+            ExpectedGatewayName = ExpectedGatewayName,
+            EndpointOverride = EndpointOverride,
+            RequestTimeout = RequestTimeout
+        };
+
+        clone.Discovery.Mode = Discovery.Mode;
+        clone.Discovery.EnableLoopback = Discovery.EnableLoopback;
+        clone.Discovery.EnableMdns = Discovery.EnableMdns;
+        clone.Discovery.ServiceType = Discovery.ServiceType;
+        clone.Discovery.Timeout = Discovery.Timeout;
+        foreach (var endpoint in Discovery.FallbackEndpoints)
+        {
+            clone.Discovery.FallbackEndpoints.Add(endpoint);
+        }
+
+        clone.Security.TrustMode = Security.TrustMode;
+        clone.Security.PinnedRootCertificateBase64 = Security.PinnedRootCertificateBase64;
+        clone.Security.StateDirectory = Security.StateDirectory;
+        clone.Security.AllowInsecureLoopbackOnly = Security.AllowInsecureLoopbackOnly;
+        return clone;
     }
 }
