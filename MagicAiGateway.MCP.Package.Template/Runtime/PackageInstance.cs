@@ -107,10 +107,21 @@ internal sealed class PackageInstance : IAsyncDisposable
             // The public ABI is length-framed and therefore accepts ordinary JSON
             // whitespace. StreamServerTransport is newline-framed internally, so
             // compact only at this private adapter boundary.
-            compactMessage = JsonSerializer.SerializeToUtf8Bytes(document.RootElement);
+            using MemoryStream compactStream = new();
+            using (Utf8JsonWriter writer = new(compactStream))
+            {
+                document.RootElement.WriteTo(writer);
+            }
+
+            compactMessage = compactStream.ToArray();
         }
 
-        await _sendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        using CancellationTokenSource sendCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _lifetimeCts.Token);
+        CancellationToken sendToken = sendCts.Token;
+
+        await _sendGate.WaitAsync(sendToken).ConfigureAwait(false);
         try
         {
             ThrowIfStopped();
@@ -121,12 +132,12 @@ internal sealed class PackageInstance : IAsyncDisposable
             _hostToServer.Writer.Advance(compactMessage.Length + 1);
 
             FlushResult flushResult = await _hostToServer.Writer
-                .FlushAsync(cancellationToken)
+                .FlushAsync(sendToken)
                 .ConfigureAwait(false);
 
             if (flushResult.IsCanceled)
             {
-                throw new OperationCanceledException(cancellationToken);
+                throw new OperationCanceledException(sendToken);
             }
 
             if (flushResult.IsCompleted)
@@ -312,11 +323,10 @@ internal sealed class PackageInstance : IAsyncDisposable
 
         Exception? failure = null;
 
+        // Lifetime cancellation releases blocked sends and receives before the
+        // shutdown path waits for their per-instance gates.
         _lifetimeCts.Cancel();
 
-        // Serialize pipe completion with any send already in progress. A send that
-        // entered first either finishes or observes the completed reader; no writer
-        // operation races PipeWriter.CompleteAsync.
         await _sendGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
