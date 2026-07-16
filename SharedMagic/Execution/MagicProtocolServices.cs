@@ -207,7 +207,9 @@ public static class MagicServiceSchemaBuilder
         if (type.IsEnum) return new()
         {
             ["type"] = "string",
-            ["enum"] = new JsonArray(type.GetEnumNames().Select(JsonValue.Create).ToArray())
+            ["enum"] = new JsonArray(type.GetEnumNames()
+                .Select(static name => (JsonNode?)JsonValue.Create(name))
+                .ToArray())
         };
         if (type == typeof(byte) || type == typeof(short) || type == typeof(int) || type == typeof(long)) return new() { ["type"] = "integer" };
         if (type == typeof(float) || type == typeof(double) || type == typeof(decimal)) return new() { ["type"] = "number" };
@@ -256,7 +258,7 @@ public sealed class DefaultGatewayCallerContextResolver : IGatewayCallerContextR
         CancellationToken cancellationToken)
     {
         var authenticated = principal.Identity?.IsAuthenticated == true;
-        var subject = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+        var subject = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
                       ?? principal.Identity?.Name
                       ?? "anonymous";
         var roles = principal.FindAll(ClaimTypes.Role).Select(static claim => claim.Value).ToHashSet(StringComparer.Ordinal);
