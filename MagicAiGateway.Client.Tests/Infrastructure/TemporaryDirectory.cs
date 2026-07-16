@@ -6,8 +6,9 @@ internal sealed class TemporaryDirectory : IDisposable
 
     public TemporaryDirectory(string purpose)
     {
+        var invalidCharacters = System.IO.Path.GetInvalidFileNameChars();
         var safePurpose = string.Concat(purpose.Select(character =>
-            Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
+            invalidCharacters.Contains(character) ? '_' : character));
         Path = System.IO.Path.Combine(
             System.IO.Path.GetTempPath(),
             "magic-ai-gateway-client-tests",
