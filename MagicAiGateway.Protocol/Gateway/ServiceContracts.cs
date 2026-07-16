@@ -34,6 +34,12 @@ public sealed record MagicServiceDescriptor
     [JsonPropertyName("response_schema")]
     public JsonObject ResponseSchema { get; init; } = new();
 
+    [JsonPropertyName("invocation_example")]
+    public JsonObject InvocationExample { get; init; } = new();
+
+    [JsonPropertyName("response_example")]
+    public JsonObject ResponseExample { get; init; } = new();
+
     [JsonPropertyName("streaming_events")]
     public IReadOnlyList<string> StreamingEvents { get; init; } = [];
 }
