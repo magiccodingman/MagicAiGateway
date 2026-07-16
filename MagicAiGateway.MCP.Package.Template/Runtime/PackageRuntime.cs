@@ -25,6 +25,7 @@ internal static class PackageRuntime
             throw new InvalidOperationException("Could not register the newly started package instance.");
         }
 
+        _ = MonitorInstanceAsync(instanceId, instance);
         return instanceId;
     }
 
@@ -69,6 +70,37 @@ internal static class PackageRuntime
         if (failures is not null)
         {
             throw new AggregateException("One or more package instances failed to stop.", failures);
+        }
+    }
+
+    private static async Task MonitorInstanceAsync(Guid instanceId, PackageInstance instance)
+    {
+        try
+        {
+            await instance.Completion.ConfigureAwait(false);
+        }
+        catch
+        {
+            // The instance retains the terminal exception long enough for an active
+            // receive call to report it. The monitor's job is lifecycle cleanup.
+        }
+
+        // Explicit stop/shutdown removes the entry before completing the server task.
+        // If the entry still exists here, the MCP server ended on its own and this
+        // monitor owns cleanup.
+        if (!Instances.TryRemove(instanceId, out PackageInstance? completedInstance))
+        {
+            return;
+        }
+
+        try
+        {
+            await completedInstance.DisposeAsync().ConfigureAwait(false);
+        }
+        catch
+        {
+            // No native caller exists on this path to receive a status code. The
+            // instance is already evicted and all cleanup has been attempted.
         }
     }
 }
