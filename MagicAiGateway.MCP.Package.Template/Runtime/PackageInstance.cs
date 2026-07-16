@@ -56,6 +56,8 @@ internal sealed class PackageInstance : IAsyncDisposable
 
     public PackageInstanceContext Context { get; }
 
+    internal Task Completion => _serverTask;
+
     public static async Task<PackageInstance> StartAsync(
         Guid instanceId,
         ReadOnlyMemory<byte> configurationJson,
@@ -162,11 +164,11 @@ internal sealed class PackageInstance : IAsyncDisposable
         {
             if (_pendingOutgoingMessage is null)
             {
-                byte[]? nextMessage;
+                byte[] nextMessage;
 
                 if (timeoutMilliseconds == 0)
                 {
-                    if (!_outgoingMessages.Reader.TryRead(out nextMessage))
+                    if (!_outgoingMessages.Reader.TryRead(out nextMessage!))
                     {
                         return new PackageReceiveResult(MagicMcpStatus.NoMessage, null, 0);
                     }
