@@ -96,19 +96,18 @@ internal sealed class PackageInstance : IAsyncDisposable
             throw new ArgumentException("An MCP message cannot be empty.", nameof(message));
         }
 
-        if (message.Span.IndexOf((byte)'\n') >= 0 || message.Span.IndexOf((byte)'\r') >= 0)
-        {
-            throw new ArgumentException(
-                "Send exactly one JSON-RPC message without raw CR or LF framing bytes.",
-                nameof(message));
-        }
-
+        byte[] compactMessage;
         using (JsonDocument document = JsonDocument.Parse(message))
         {
             if (document.RootElement.ValueKind != JsonValueKind.Object)
             {
                 throw new ArgumentException("An MCP JSON-RPC message must be a JSON object.", nameof(message));
             }
+
+            // The public ABI is length-framed and therefore accepts ordinary JSON
+            // whitespace. StreamServerTransport is newline-framed internally, so
+            // compact only at this private adapter boundary.
+            compactMessage = JsonSerializer.SerializeToUtf8Bytes(document.RootElement);
         }
 
         await _sendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -116,10 +115,10 @@ internal sealed class PackageInstance : IAsyncDisposable
         {
             ThrowIfStopped();
 
-            Memory<byte> destination = _hostToServer.Writer.GetMemory(message.Length + 1);
-            message.Span.CopyTo(destination.Span);
-            destination.Span[message.Length] = (byte)'\n';
-            _hostToServer.Writer.Advance(message.Length + 1);
+            Memory<byte> destination = _hostToServer.Writer.GetMemory(compactMessage.Length + 1);
+            compactMessage.AsSpan().CopyTo(destination.Span);
+            destination.Span[compactMessage.Length] = (byte)'\n';
+            _hostToServer.Writer.Advance(compactMessage.Length + 1);
 
             FlushResult flushResult = await _hostToServer.Writer
                 .FlushAsync(cancellationToken)
@@ -224,9 +223,9 @@ internal sealed class PackageInstance : IAsyncDisposable
                     requiredLength);
             }
 
-            byte[] message = _pendingOutgoingMessage;
+            byte[] outgoingMessage = _pendingOutgoingMessage;
             _pendingOutgoingMessage = null;
-            return new PackageReceiveResult(MagicMcpStatus.Success, message, message.Length);
+            return new PackageReceiveResult(MagicMcpStatus.Success, outgoingMessage, outgoingMessage.Length);
         }
         finally
         {
@@ -315,6 +314,10 @@ internal sealed class PackageInstance : IAsyncDisposable
 
         _lifetimeCts.Cancel();
 
+        // Serialize pipe completion with any send already in progress. A send that
+        // entered first either finishes or observes the completed reader; no writer
+        // operation races PipeWriter.CompleteAsync.
+        await _sendGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
             await _hostToServer.Writer.CompleteAsync().ConfigureAwait(false);
@@ -322,6 +325,10 @@ internal sealed class PackageInstance : IAsyncDisposable
         catch (Exception exception)
         {
             failure ??= exception;
+        }
+        finally
+        {
+            _sendGate.Release();
         }
 
         try
