@@ -28,6 +28,7 @@ internal sealed class PackageInstance : IAsyncDisposable
     private readonly IHost _host;
     private readonly StreamServerTransport _transport;
     private readonly McpServer _server;
+    private readonly CancellationTokenRegistration _hostStoppingRegistration;
     private readonly Task _serverTask;
     private readonly Task _outputPumpTask;
 
@@ -50,6 +51,13 @@ internal sealed class PackageInstance : IAsyncDisposable
             loggerFactory);
 
         _server = McpServer.Create(_transport, options, loggerFactory, host.Services);
+
+        IHostApplicationLifetime hostLifetime =
+            host.Services.GetRequiredService<IHostApplicationLifetime>();
+        _hostStoppingRegistration = hostLifetime.ApplicationStopping.Register(
+            static state => ((CancellationTokenSource)state!).Cancel(),
+            _lifetimeCts);
+
         _serverTask = RunServerAsync(_lifetimeCts.Token);
         _outputPumpTask = PumpOutgoingMessagesAsync(_lifetimeCts.Token);
     }
@@ -387,6 +395,7 @@ internal sealed class PackageInstance : IAsyncDisposable
         }
         finally
         {
+            _hostStoppingRegistration.Dispose();
             _host.Dispose();
             _lifetimeCts.Dispose();
         }
