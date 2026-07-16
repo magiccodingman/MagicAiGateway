@@ -26,7 +26,9 @@ public static class Program
         HostApplicationBuilder builder = Host.CreateEmptyApplicationBuilder(
             new HostApplicationBuilderSettings
             {
-                ApplicationName = PackageManifest.Name,
+                // ApplicationName is a .NET hosting/assembly identity. The friendly
+                // package name belongs in PackageManifest and MCP ServerInfo instead.
+                ApplicationName = typeof(Program).Assembly.GetName().Name,
                 EnvironmentName = Environments.Production,
                 ContentRootPath = AppContext.BaseDirectory
             });
