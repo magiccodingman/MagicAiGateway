@@ -34,7 +34,7 @@ public sealed class RawGatewayClientValidationTests
             ApplicationId = "missing-uri-test",
             Security = { StateDirectory = directory.Path }
         });
-        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri: null);
+        using var request = new HttpRequestMessage(HttpMethod.Get, (Uri?)null);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => client.Raw.SendAsync(request));
     }
