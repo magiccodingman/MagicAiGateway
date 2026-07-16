@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\MagicAiGateway.Client\MagicAiGateway.Client.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Makaretu.Dns.Multicast" Version="0.27.0" />
   </ItemGroup>

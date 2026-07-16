@@ -28,3 +28,10 @@ jobs:
           name: build-log
           path: build.log
       - run: dotnet test SharedMagic.Tests/SharedMagic.Tests.csproj --configuration Release --no-build
+      - name: Client unit and integration tests
+        run: >-
+          dotnet test MagicAiGateway.Client.Tests/MagicAiGateway.Client.Tests.csproj
+          --configuration Release
+          --no-build
+          --filter "Category!=Live"
+      - run: dotnet pack MagicAiGateway.Client/MagicAiGateway.Client.csproj --configuration Release --no-build --output artifacts

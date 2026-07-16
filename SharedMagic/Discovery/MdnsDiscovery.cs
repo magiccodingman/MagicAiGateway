@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Makaretu.Dns;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -32,9 +31,14 @@ public sealed class MdnsAdvertiserHostedService(
         {
             profile.AddProperty(property.Key, property.Value);
         }
+
         _discovery.Advertise(profile);
         _multicast.Start();
-        logger.LogInformation("Advertising {Instance} as {ServiceType} on port {Port}.", advertisement.InstanceName, advertisement.ServiceType, advertisement.Port);
+        logger.LogInformation(
+            "Advertising {Instance} as {ServiceType} on port {Port}.",
+            advertisement.InstanceName,
+            advertisement.ServiceType,
+            advertisement.Port);
         return Task.CompletedTask;
     }
 
@@ -51,62 +55,36 @@ public sealed class MdnsAdvertiserHostedService(
     }
 }
 
+// Compatibility adapter for existing server code. Gateway browsing itself now lives
+// in MagicAiGateway.Client so applications and nodes share one discovery implementation.
 public sealed class MdnsBrowser : IDisposable
 {
-    private readonly string _serviceType;
-    private readonly string _expectedInstancePrefix;
-    private readonly ILogger<MdnsBrowser> _logger;
-    private readonly MulticastService _multicast = new();
-    private readonly ServiceDiscovery _discovery;
-    private readonly ConcurrentDictionary<string, DiscoveredFabricService> _services = new(StringComparer.OrdinalIgnoreCase);
+    private readonly MagicAiGateway.Client.Discovery.MdnsBrowser _inner;
 
     public MdnsBrowser(string serviceType, string expectedInstancePrefix, ILogger<MdnsBrowser> logger)
     {
-        _serviceType = serviceType.TrimEnd('.') + ".local";
-        _expectedInstancePrefix = expectedInstancePrefix;
-        _logger = logger;
-        _discovery = new ServiceDiscovery(_multicast);
-        _multicast.NetworkInterfaceDiscovered += (_, _) => _multicast.SendQuery(_serviceType, type: DnsType.PTR);
-        _discovery.ServiceInstanceDiscovered += (_, args) =>
+        _inner = new MagicAiGateway.Client.Discovery.MdnsBrowser(serviceType, expectedInstancePrefix, logger);
+        _inner.ServiceDiscovered += (_, service) =>
         {
-            var instance = args.ServiceInstanceName.ToString();
-            if (!instance.StartsWith(_expectedInstancePrefix, StringComparison.OrdinalIgnoreCase) ||
-                !instance.Contains(_serviceType, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-            _multicast.SendQuery(args.ServiceInstanceName, type: DnsType.SRV);
-        };
-        _multicast.AnswerReceived += (_, args) =>
-        {
-            foreach (var server in args.Message.Answers.OfType<SRVRecord>())
-            {
-                var instance = server.Name.ToString();
-                if (!instance.StartsWith(_expectedInstancePrefix, StringComparison.OrdinalIgnoreCase) ||
-                    !instance.Contains(_serviceType, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var discovered = new DiscoveredFabricService(instance, _serviceType, server.Target.ToString(), server.Port);
-                if (_services.TryAdd(instance, discovered))
-                {
-                    _logger.LogInformation("Discovered fabric service {Instance} at {Host}:{Port}.", instance, discovered.Host, discovered.Port);
-                    ServiceDiscovered?.Invoke(this, discovered);
-                }
-            }
+            var discovered = new DiscoveredFabricService(
+                service.InstanceName,
+                service.ServiceType,
+                service.Host,
+                service.Port);
+            ServiceDiscovered?.Invoke(this, discovered);
         };
     }
 
     public event EventHandler<DiscoveredFabricService>? ServiceDiscovered;
-    public IReadOnlyCollection<DiscoveredFabricService> Services => _services.Values.ToArray();
 
-    public void Start() => _multicast.Start();
+    public IReadOnlyCollection<DiscoveredFabricService> Services => _inner.Services
+        .Select(service => new DiscoveredFabricService(
+            service.InstanceName,
+            service.ServiceType,
+            service.Host,
+            service.Port))
+        .ToArray();
 
-    public void Dispose()
-    {
-        _discovery.Dispose();
-        _multicast.Stop();
-        _multicast.Dispose();
-    }
+    public void Start() => _inner.Start();
+    public void Dispose() => _inner.Dispose();
 }
