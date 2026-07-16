@@ -48,7 +48,11 @@ builder.Services.AddSingleton<GatewayProxyInvoker>();
 builder.Services.AddSingleton<GatewayNodeClient>();
 builder.Services.AddHostedService<NodeLeaseMonitorService>();
 builder.Services.AddHostedService<StaticNodeMonitorService>();
+
+// Fabric peers and ordinary clients intentionally use separate authentication domains.
 builder.Services.AddMagicFabricAuthentication();
+builder.Services.AddMagicGatewayClientSecurity(builder.Configuration);
+
 builder.Services.AddSignalR(options => options.StatefulReconnectBufferSize = 100_000);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
