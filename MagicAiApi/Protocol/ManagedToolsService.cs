@@ -79,6 +79,17 @@ public sealed class ManagedToolsProtocolService(IManagedToolRunService runner)
         SupportedEndpoints = ["/v1/chat/completions"],
         DefaultRunTimeoutSeconds = 30 * 60,
         MaximumRunTimeoutSeconds = 60 * 60,
+        ResponseSchema = MagicServiceSchemaBuilder.Build(typeof(MagicChatCompletionResponse)),
+        InvocationExample = MagicServiceDescriptorExamples.CreateInvocation(
+            MagicServiceNames.ManagedTools,
+            serviceVersion: 1,
+            new ManagedToolsOptions
+            {
+                McpProfile = "default",
+                MaximumRounds = 16,
+                MaximumToolCalls = 64
+            }),
+        ResponseExample = MagicServiceDescriptorExamples.CreateResponse(MagicServiceNames.ManagedTools),
         StreamingEvents =
         [
             MagicStreamEventTypes.RunStarted,
