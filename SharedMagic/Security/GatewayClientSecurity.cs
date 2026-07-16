@@ -30,6 +30,8 @@ public static class GatewayClientAuthenticationDefaults
     public const string Scheme = "MagicGatewayClient";
     public const string SecurityDomainClaim = "magic_security_domain";
     public const string SecurityDomainValue = "client";
+    public const string SubjectClaim = "magic_subject";
+    public const string ScopeClaim = "magic_scope";
 }
 
 public static class GatewayPolicies
@@ -39,6 +41,7 @@ public static class GatewayPolicies
     public const string InferenceCreate = "MagicGateway.Inference.Create";
     public const string EmbeddingsCreate = "MagicGateway.Embeddings.Create";
     public const string Tokenize = "MagicGateway.Tokenize";
+    public const string Detokenize = "MagicGateway.Detokenize";
     public const string GatewayProtocolInvoke = "MagicGateway.Protocol.Invoke";
     public const string StatusRead = "MagicGateway.Status.Read";
     public const string Administration = "MagicGateway.Administration";
@@ -48,7 +51,8 @@ public static class GatewayPolicies
         GatewayOperation.ListModels => ModelsRead,
         GatewayOperation.CreateInference => InferenceCreate,
         GatewayOperation.CreateEmbedding => EmbeddingsCreate,
-        GatewayOperation.Tokenize or GatewayOperation.Detokenize => Tokenize,
+        GatewayOperation.Tokenize => Tokenize,
+        GatewayOperation.Detokenize => Detokenize,
         GatewayOperation.GatewayProtocol => GatewayProtocolInvoke,
         GatewayOperation.ReadStatus => StatusRead,
         GatewayOperation.Administration => Administration,
@@ -284,6 +288,7 @@ public static class GatewayClientSecurityServiceCollectionExtensions
             AddOperationPolicy(options, GatewayPolicies.InferenceCreate, GatewayOperation.CreateInference);
             AddOperationPolicy(options, GatewayPolicies.EmbeddingsCreate, GatewayOperation.CreateEmbedding);
             AddOperationPolicy(options, GatewayPolicies.Tokenize, GatewayOperation.Tokenize);
+            AddOperationPolicy(options, GatewayPolicies.Detokenize, GatewayOperation.Detokenize);
             AddOperationPolicy(options, GatewayPolicies.GatewayProtocolInvoke, GatewayOperation.GatewayProtocol);
             AddOperationPolicy(options, GatewayPolicies.StatusRead, GatewayOperation.ReadStatus);
             AddOperationPolicy(options, GatewayPolicies.Administration, GatewayOperation.Administration);
