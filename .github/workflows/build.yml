@@ -34,4 +34,7 @@ jobs:
           --configuration Release
           --no-build
           --filter "Category!=Live"
-      - run: dotnet pack MagicAiGateway.Client/MagicAiGateway.Client.csproj --configuration Release --no-build --output artifacts
+      - name: Pack protocol contracts
+        run: dotnet pack MagicAiGateway.Protocol/MagicAiGateway.Protocol.csproj --configuration Release --no-build --output artifacts
+      - name: Pack client SDK
+        run: dotnet pack MagicAiGateway.Client/MagicAiGateway.Client.csproj --configuration Release --no-build --output artifacts
