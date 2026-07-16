@@ -27,7 +27,15 @@ public static unsafe class MagicMcpExports
     public static int GetManifest(byte* output, nuint outputCapacity, nuint* outputLength)
     {
         InteropErrorState.Clear();
-        return CopyToCaller(PackageManifest.JsonUtf8, output, outputCapacity, outputLength);
+
+        try
+        {
+            return CopyToCaller(PackageManifest.JsonUtf8, output, outputCapacity, outputLength);
+        }
+        catch (Exception exception)
+        {
+            return Fail(MagicMcpStatus.InternalError, exception);
+        }
     }
 
     [UnmanagedCallersOnly(
@@ -263,8 +271,15 @@ public static unsafe class MagicMcpExports
         CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int GetLastError(byte* output, nuint outputCapacity, nuint* outputLength)
     {
-        byte[] error = InteropErrorState.GetUtf8();
-        return CopyToCaller(error, output, outputCapacity, outputLength, preserveLastError: true);
+        try
+        {
+            byte[] error = InteropErrorState.GetUtf8();
+            return CopyToCaller(error, output, outputCapacity, outputLength, preserveLastError: true);
+        }
+        catch (Exception exception)
+        {
+            return Fail(MagicMcpStatus.InternalError, exception);
+        }
     }
 
     private static void ValidateConfiguration(ReadOnlyMemory<byte> configuration)
