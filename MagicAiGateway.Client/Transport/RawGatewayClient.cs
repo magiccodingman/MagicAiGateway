@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using MagicAiGateway.Client.Authentication;
 using MagicAiGateway.Client.Connection;
 
 namespace MagicAiGateway.Client.Transport;
@@ -52,7 +53,9 @@ public sealed class GatewayResponseStream : IAsyncDisposable, IDisposable
     }
 }
 
-public sealed class RawGatewayClient(GatewayConnection connection) : IRawGatewayClient
+public sealed class RawGatewayClient(
+    GatewayConnection connection,
+    IGatewayCredentialProvider credentialProvider) : IRawGatewayClient
 {
     public async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
@@ -64,7 +67,16 @@ public sealed class RawGatewayClient(GatewayConnection connection) : IRawGateway
         ValidateRequestUri(relativeUri);
 
         var client = await connection.GetHttpClientAsync(cancellationToken).ConfigureAwait(false);
-        request.RequestUri = new Uri(connection.Current!.BaseUri, relativeUri!);
+        var endpoint = connection.Current
+                       ?? throw new InvalidOperationException("The gateway endpoint was not resolved.");
+        var absoluteUri = new Uri(endpoint.BaseUri, relativeUri!);
+        request.RequestUri = absoluteUri;
+
+        var credential = await credentialProvider.GetCredentialAsync(
+            new GatewayCredentialContext(endpoint.BaseUri, request.Method, absoluteUri),
+            cancellationToken).ConfigureAwait(false);
+        credential?.Apply(request);
+
         try
         {
             return await client.SendAsync(request, completionOption, cancellationToken).ConfigureAwait(false);
