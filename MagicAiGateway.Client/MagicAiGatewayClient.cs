@@ -1,6 +1,8 @@
 using MagicAiGateway.Client.Authentication;
+using MagicAiGateway.Client.Chat;
 using MagicAiGateway.Client.Configuration;
 using MagicAiGateway.Client.Connection;
+using MagicAiGateway.Client.ProtocolServices;
 using MagicAiGateway.Client.Security;
 using MagicAiGateway.Client.Transport;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -11,6 +13,8 @@ public interface IMagicAiGatewayClient : IAsyncDisposable
 {
     IGatewayConnection Connection { get; }
     IRawGatewayClient Raw { get; }
+    IMagicChatClient Chat { get; }
+    IMagicProtocolClient Protocol { get; }
 }
 
 public sealed class MagicAiGatewayClient : IMagicAiGatewayClient
@@ -21,16 +25,22 @@ public sealed class MagicAiGatewayClient : IMagicAiGatewayClient
     internal MagicAiGatewayClient(
         GatewayConnection connection,
         IRawGatewayClient raw,
+        IMagicChatClient chat,
+        IMagicProtocolClient protocol,
         bool ownsConnection)
     {
         _connection = connection;
         _ownsConnection = ownsConnection;
         Connection = connection;
         Raw = raw;
+        Chat = chat;
+        Protocol = protocol;
     }
 
     public IGatewayConnection Connection { get; }
     public IRawGatewayClient Raw { get; }
+    public IMagicChatClient Chat { get; }
+    public IMagicProtocolClient Protocol { get; }
 
     public static MagicAiGatewayClient Create(
         MagicAiGatewayClientOptions options,
@@ -46,8 +56,10 @@ public sealed class MagicAiGatewayClient : IMagicAiGatewayClient
             transportOptions,
             trustStore,
             NullLoggerFactory.Instance);
-        var raw = new RawGatewayClient(connection, credentialProvider);
-        return new MagicAiGatewayClient(connection, raw, ownsConnection: true);
+        var raw = new RawGatewayClient(connection, credentialProvider, transportOptions);
+        var chat = new MagicChatClient(raw, transportOptions);
+        var protocol = new MagicProtocolClient(raw, transportOptions);
+        return new MagicAiGatewayClient(connection, raw, chat, protocol, ownsConnection: true);
     }
 
     public ValueTask DisposeAsync() =>

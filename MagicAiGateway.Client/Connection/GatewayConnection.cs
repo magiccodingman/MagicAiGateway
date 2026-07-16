@@ -4,8 +4,8 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using MagicAiGateway.Client.Configuration;
 using MagicAiGateway.Client.Discovery;
-using MagicAiGateway.Client.Protocol;
 using MagicAiGateway.Client.Security;
+using MagicAiGateway.Protocol;
 using Microsoft.Extensions.Logging;
 
 namespace MagicAiGateway.Client.Connection;
@@ -315,19 +315,11 @@ public sealed class GatewayConnection : IGatewayConnection, IAsyncDisposable
         _ => false
     };
 
-    private HttpClient CreateClient(HttpMessageHandler handler, Uri baseUri)
+    private HttpClient CreateClient(HttpMessageHandler handler, Uri baseUri) => new(handler)
     {
-        var client = new HttpClient(handler)
-        {
-            BaseAddress = Normalize(baseUri),
-            Timeout = _options.RequestTimeout
-        };
-        if (!string.IsNullOrWhiteSpace(_options.ApiKey))
-        {
-            client.DefaultRequestHeaders.Authorization = new("Bearer", _options.ApiKey);
-        }
-        return client;
-    }
+        BaseAddress = Normalize(baseUri),
+        Timeout = _options.RequestTimeout
+    };
 
     private static HttpClientHandler CreatePinnedHandler(X509Certificate2 root, Guid gatewayId)
     {

@@ -1,5 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
-using MagicAiGateway.Client.Protocol;
+using MagicAiGateway.Protocol;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -20,11 +20,13 @@ public sealed class GatewayInfoController(
         authority.Identity.InstanceId,
         authority.Identity.ClusterId,
         MagicAiGatewayProtocol.CurrentVersion,
-        MinimumClientProtocolVersion: 1,
+        MagicAiGatewayProtocol.MinimumSupportedVersion,
         Convert.ToBase64String(authority.RootCertificate.Export(X509ContentType.Cert)),
         [
             "openai-proxy",
             "streaming",
-            "gateway-protocol"
+            "gateway-protocol",
+            "service-catalog",
+            "managed-run-lifecycle"
         ]));
 }

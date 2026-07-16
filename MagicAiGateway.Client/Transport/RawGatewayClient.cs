@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using MagicAiGateway.Client.Authentication;
+using MagicAiGateway.Client.Configuration;
 using MagicAiGateway.Client.Connection;
 
 namespace MagicAiGateway.Client.Transport;
@@ -25,12 +26,17 @@ public interface IRawGatewayClient
 
 public sealed class GatewayResponseStream : IAsyncDisposable, IDisposable
 {
+    private readonly CancellationTokenSource? _requestCancellation;
     private bool _disposed;
 
-    internal GatewayResponseStream(HttpResponseMessage response, Stream stream)
+    internal GatewayResponseStream(
+        HttpResponseMessage response,
+        Stream stream,
+        CancellationTokenSource? requestCancellation = null)
     {
         Response = response;
         Stream = stream;
+        _requestCancellation = requestCancellation;
     }
 
     public HttpResponseMessage Response { get; }
@@ -42,6 +48,7 @@ public sealed class GatewayResponseStream : IAsyncDisposable, IDisposable
         _disposed = true;
         Stream.Dispose();
         Response.Dispose();
+        _requestCancellation?.Dispose();
     }
 
     public async ValueTask DisposeAsync()
@@ -50,17 +57,93 @@ public sealed class GatewayResponseStream : IAsyncDisposable, IDisposable
         _disposed = true;
         await Stream.DisposeAsync().ConfigureAwait(false);
         Response.Dispose();
+        _requestCancellation?.Dispose();
     }
 }
 
 public sealed class RawGatewayClient(
     GatewayConnection connection,
-    IGatewayCredentialProvider credentialProvider) : IRawGatewayClient
+    IGatewayCredentialProvider credentialProvider,
+    MagicAiGatewayClientOptions options) : IRawGatewayClient
 {
-    public async Task<HttpResponseMessage> SendAsync(
+    public Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead,
+        CancellationToken cancellationToken = default) =>
+        SendWithTimeoutAsync(request, completionOption, options.StandardRequestTimeout, cancellationToken);
+
+    internal async Task<HttpResponseMessage> SendWithTimeoutAsync(
+        HttpRequestMessage request,
+        HttpCompletionOption completionOption,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var requestCancellation = CreateRequestCancellation(timeout, cancellationToken);
+        return await SendCoreAsync(
+            request,
+            completionOption,
+            requestCancellation.Token).ConfigureAwait(false);
+    }
+
+    public async Task<HttpResponseMessage> GetAsync(
+        string relativePath,
         CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, relativePath);
+        return await SendAsync(request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<HttpResponseMessage> PostJsonAsync<T>(
+        string relativePath,
+        T value,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, relativePath)
+        {
+            Content = JsonContent.Create(value)
+        };
+        return await SendAsync(request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<GatewayResponseStream> SendStreamingAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken = default) =>
+        SendStreamingWithTimeoutAsync(request, options.StandardRequestTimeout, cancellationToken);
+
+    internal async Task<GatewayResponseStream> SendStreamingWithTimeoutAsync(
+        HttpRequestMessage request,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var requestCancellation = CreateRequestCancellation(timeout, cancellationToken);
+        try
+        {
+            var response = await SendCoreAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                requestCancellation.Token).ConfigureAwait(false);
+            try
+            {
+                var stream = await response.Content.ReadAsStreamAsync(requestCancellation.Token).ConfigureAwait(false);
+                return new GatewayResponseStream(response, stream, requestCancellation);
+            }
+            catch
+            {
+                response.Dispose();
+                throw;
+            }
+        }
+        catch
+        {
+            requestCancellation.Dispose();
+            throw;
+        }
+    }
+
+    private async Task<HttpResponseMessage> SendCoreAsync(
+        HttpRequestMessage request,
+        HttpCompletionOption completionOption,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         var relativeUri = request.RequestUri;
@@ -88,44 +171,13 @@ public sealed class RawGatewayClient(
         }
     }
 
-    public async Task<HttpResponseMessage> GetAsync(
-        string relativePath,
-        CancellationToken cancellationToken = default)
+    private static CancellationTokenSource CreateRequestCancellation(
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, relativePath);
-        return await SendAsync(request, cancellationToken: cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<HttpResponseMessage> PostJsonAsync<T>(
-        string relativePath,
-        T value,
-        CancellationToken cancellationToken = default)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Post, relativePath)
-        {
-            Content = JsonContent.Create(value)
-        };
-        return await SendAsync(request, cancellationToken: cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<GatewayResponseStream> SendStreamingAsync(
-        HttpRequestMessage request,
-        CancellationToken cancellationToken = default)
-    {
-        var response = await SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken).ConfigureAwait(false);
-        try
-        {
-            var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            return new GatewayResponseStream(response, stream);
-        }
-        catch
-        {
-            response.Dispose();
-            throw;
-        }
+        var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (timeout != Timeout.InfiniteTimeSpan) source.CancelAfter(timeout);
+        return source;
     }
 
     private static void ValidateRequestUri(Uri? requestUri)

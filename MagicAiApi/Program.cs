@@ -1,11 +1,13 @@
+using MagicAiApi;
+using MagicAiApi.Protocol;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.Options;
 using SharedMagic.Configuration;
 using SharedMagic.Discovery;
+using SharedMagic.Execution;
 using SharedMagic.Proxy;
 using SharedMagic.Routing;
 using SharedMagic.Security;
-using MagicAiApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,11 +45,22 @@ builder.Services.AddSingleton<GatewayNodeRegistry>();
 builder.Services.AddSingleton<IFabricPeerTrustProvider, GatewayPeerTrustProvider>();
 builder.Services.AddSingleton<IRequestScheduler<GatewayNodeTarget>, LeastBusyRequestScheduler<GatewayNodeTarget>>();
 builder.Services.AddSingleton<IMagicToolRegistry, EmptyMagicToolRegistry>();
-builder.Services.AddSingleton<MagicProtocolDispatcher>();
 builder.Services.AddSingleton<GatewayProxyInvoker>();
 builder.Services.AddSingleton<GatewayNodeClient>();
 builder.Services.AddHostedService<NodeLeaseMonitorService>();
 builder.Services.AddHostedService<StaticNodeMonitorService>();
+
+// Magic protocol host: one public service selection becomes a server-owned execution plan.
+builder.Services.AddSingleton<IManagedToolRunService, UnavailableManagedToolRunService>();
+builder.Services.AddSingleton<IMagicProtocolService, ManagedToolsProtocolService>();
+builder.Services.AddSingleton<IMagicProtocolServiceRegistry, MagicProtocolServiceRegistry>();
+builder.Services.AddSingleton<IGatewayRunManager, GatewayRunManager>();
+builder.Services.AddSingleton<IMagicExecutionPlanExecutor, MagicExecutionPlanExecutor>();
+builder.Services.AddSingleton<IGatewayCallerContextResolver, DefaultGatewayCallerContextResolver>();
+builder.Services.AddSingleton<IGatewayApplicationResolver, DefaultGatewayApplicationResolver>();
+builder.Services.AddSingleton<IGatewayAgentResolver, DefaultGatewayAgentResolver>();
+builder.Services.AddSingleton<IGatewayServiceAuthorizationService, DefaultGatewayServiceAuthorizationService>();
+builder.Services.AddSingleton<MagicProtocolHost>();
 
 // Fabric peers and ordinary clients intentionally use separate authentication domains.
 builder.Services.AddMagicFabricAuthentication();

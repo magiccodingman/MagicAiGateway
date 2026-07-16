@@ -1,5 +1,5 @@
 using System.Text.Json.Nodes;
-using MagicAiGateway.Client.Protocol;
+using MagicAiGateway.Protocol;
 
 namespace MagicAiGateway.Client.Tests.Unit;
 
@@ -15,19 +15,21 @@ public sealed class ProtocolEnvelopeTests
             ["stream"] = true
         };
 
-        var result = MagicAiGatewayJson.Attach(source, new MagicAiGatewayEnvelope
+        var result = MagicProtocolJson.Attach(source, new MagicAiGatewayEnvelope
         {
-            Operation = "tool-loop",
-            Options = new JsonObject { ["maximum_rounds"] = 8 }
+            Application = "GameShow",
+            Service = MagicServiceInvocation.Create(
+                MagicServiceNames.ManagedTools,
+                new ManagedToolsOptions { MaximumRounds = 8 })
         });
 
         Assert.False(source.ContainsKey(MagicAiGatewayProtocol.PropertyName));
         Assert.Equal(
-            "tool-loop",
-            result[MagicAiGatewayProtocol.PropertyName]?["operation"]?.GetValue<string>());
+            MagicServiceNames.ManagedTools,
+            result[MagicAiGatewayProtocol.PropertyName]?["service"]?["name"]?.GetValue<string>());
         Assert.Equal(
             8,
-            result[MagicAiGatewayProtocol.PropertyName]?["options"]?["maximum_rounds"]?.GetValue<int>());
+            result[MagicAiGatewayProtocol.PropertyName]?["service"]?["options"]?["maximum_rounds"]?.GetValue<int>());
     }
 
     [Fact]
@@ -42,7 +44,7 @@ public sealed class ProtocolEnvelopeTests
             }
         };
 
-        var result = MagicAiGatewayJson.Remove(source);
+        var result = MagicProtocolJson.Remove(source);
 
         Assert.True(source.ContainsKey(MagicAiGatewayProtocol.PropertyName));
         Assert.False(result.ContainsKey(MagicAiGatewayProtocol.PropertyName));
