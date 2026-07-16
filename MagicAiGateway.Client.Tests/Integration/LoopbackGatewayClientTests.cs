@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using MagicAiGateway.Client.Authentication;
 using MagicAiGateway.Client.Configuration;
 using MagicAiGateway.Client.Connection;
 using MagicAiGateway.Client.Tests.Infrastructure;
@@ -112,15 +113,66 @@ public sealed class LoopbackGatewayClientTests
         Assert.Equal("[DONE]", dataLines[^1]);
     }
 
-    private static MagicAiGatewayClient CreateClient(Uri endpoint, string stateDirectory) =>
+    [Fact]
+    public async Task ApiKeyCompatibilityOptionAddsBearerCredential()
+    {
+        await using var server = await LoopbackGatewayServer.StartAsync();
+        using var directory = new TemporaryDirectory("api-key-credential");
+        await using var client = CreateClient(
+            server.Endpoint,
+            directory.Path,
+            apiKey: "test-api-key");
+
+        using var response = await client.Raw.GetAsync("/v1/models");
+        response.EnsureSuccessStatusCode();
+
+        var request = Assert.Single(server.Requests, request => request.Path == "/v1/models");
+        Assert.Equal("Bearer test-api-key", request.Authorization);
+    }
+
+    [Fact]
+    public async Task CustomCredentialProviderRunsForEachClientRequest()
+    {
+        await using var server = await LoopbackGatewayServer.StartAsync();
+        using var directory = new TemporaryDirectory("dynamic-credential");
+        var calls = 0;
+        var credentialProvider = new DelegateGatewayCredentialProvider((context, _) =>
+        {
+            calls++;
+            Assert.Equal(server.Endpoint, context.GatewayEndpoint);
+            return ValueTask.FromResult<GatewayCredential?>(
+                GatewayCredential.Bearer($"dynamic-{calls}"));
+        });
+        await using var client = CreateClient(
+            server.Endpoint,
+            directory.Path,
+            credentialProvider: credentialProvider);
+
+        using var first = await client.Raw.GetAsync("/v1/models");
+        using var second = await client.Raw.GetAsync("/v1/models");
+        first.EnsureSuccessStatusCode();
+        second.EnsureSuccessStatusCode();
+
+        var requests = server.Requests.Where(request => request.Path == "/v1/models").ToArray();
+        Assert.Equal(2, calls);
+        Assert.Equal("Bearer dynamic-1", requests[0].Authorization);
+        Assert.Equal("Bearer dynamic-2", requests[1].Authorization);
+    }
+
+    private static MagicAiGatewayClient CreateClient(
+        Uri endpoint,
+        string stateDirectory,
+        string? apiKey = null,
+        IGatewayCredentialProvider? credentialProvider = null) =>
         MagicAiGatewayClient.Create(new MagicAiGatewayClientOptions
         {
             ApplicationId = "loopback-integration-tests",
             EndpointOverride = endpoint,
+            ApiKey = apiKey,
             Security =
             {
                 StateDirectory = stateDirectory,
                 TrustMode = GatewayTrustMode.SystemOnly
             }
-        });
+        }, credentialProvider);
 }

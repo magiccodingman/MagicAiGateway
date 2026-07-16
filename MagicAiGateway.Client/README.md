@@ -25,6 +25,48 @@ public sealed class ModelService(IMagicAiGatewayClient gateway)
 }
 ```
 
+## Client credentials
+
+Anonymous requests remain the default. `ApiKey` is retained as a convenience option and is internally converted into a static credential provider:
+
+```csharp
+builder.Services.AddMagicAiGatewayClient(options =>
+{
+    options.ApplicationId = "MyApplication";
+    options.ApiKey = configuration["MagicAiGateway:ApiKey"];
+});
+```
+
+Applications with an existing authentication system can replace `IGatewayCredentialProvider`. The provider runs for every request, allowing expiring or user-specific tokens to be acquired without rebuilding the gateway connection:
+
+```csharp
+using MagicAiGateway.Client.Authentication;
+
+builder.Services.AddSingleton<IGatewayCredentialProvider>(
+    new DelegateGatewayCredentialProvider(async (context, cancellationToken) =>
+    {
+        var token = await existingAuthentication
+            .GetAccessTokenAsync(cancellationToken);
+
+        return GatewayCredential.Bearer(token);
+    }));
+```
+
+Register the custom provider before or after `AddMagicAiGatewayClient`; the explicit application registration is used in preference to the default anonymous/API-key provider.
+
+For non-DI applications, pass a provider directly:
+
+```csharp
+await using var gateway = MagicAiGatewayClient.Create(
+    new MagicAiGatewayClientOptions
+    {
+        ApplicationId = "InteropHost"
+    },
+    new DelegateGatewayCredentialProvider(GetCredentialAsync));
+```
+
+The credential provider affects ordinary client requests only. Node pairing and fabric control traffic continue to use the node certificate and fabric authorization system.
+
 ## Explicit endpoint
 
 ```csharp

@@ -12,7 +12,11 @@ using Microsoft.Extensions.Logging;
 
 namespace MagicAiGateway.Client.Tests.Infrastructure;
 
-internal sealed record CapturedGatewayRequest(string Method, string Path, string? Body);
+internal sealed record CapturedGatewayRequest(
+    string Method,
+    string Path,
+    string? Body,
+    string? Authorization);
 
 internal sealed class LoopbackGatewayServer : IAsyncDisposable
 {
@@ -59,9 +63,9 @@ internal sealed class LoopbackGatewayServer : IAsyncDisposable
 
     private void MapRoutes()
     {
-        _application.MapGet(MagicAiGatewayProtocol.GatewayInfoPath, () =>
+        _application.MapGet(MagicAiGatewayProtocol.GatewayInfoPath, (HttpContext context) =>
         {
-            Capture(HttpMethods.Get, MagicAiGatewayProtocol.GatewayInfoPath, null);
+            Capture(context, null);
             return Results.Json(new GatewayInfo(
                 "MagicAiGateway",
                 GatewayId,
@@ -72,9 +76,9 @@ internal sealed class LoopbackGatewayServer : IAsyncDisposable
                 Features: ["openai-proxy", "streaming", "gateway-protocol"]));
         });
 
-        _application.MapGet("/v1/models", () =>
+        _application.MapGet("/v1/models", (HttpContext context) =>
         {
-            Capture(HttpMethods.Get, "/v1/models", null);
+            Capture(context, null);
             return Results.Json(new
             {
                 @object = "list",
@@ -100,7 +104,7 @@ internal sealed class LoopbackGatewayServer : IAsyncDisposable
             context.Request.Body,
             cancellationToken: context.RequestAborted).ConfigureAwait(false);
         var body = document.RootElement.GetRawText();
-        Capture(context.Request.Method, context.Request.Path, body);
+        Capture(context, body);
 
         var stream = document.RootElement.TryGetProperty("stream", out var streamElement) &&
                      streamElement.ValueKind == JsonValueKind.True;
@@ -146,8 +150,12 @@ internal sealed class LoopbackGatewayServer : IAsyncDisposable
         }
     }
 
-    private void Capture(string method, string path, string? body) =>
-        _requests.Enqueue(new CapturedGatewayRequest(method, path, body));
+    private void Capture(HttpContext context, string? body) =>
+        _requests.Enqueue(new CapturedGatewayRequest(
+            context.Request.Method,
+            context.Request.Path,
+            body,
+            context.Request.Headers.Authorization.FirstOrDefault()));
 
     public async ValueTask DisposeAsync()
     {

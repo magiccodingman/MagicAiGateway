@@ -25,6 +25,20 @@ Client discovery order is configurable, with local-first as the default: loopbac
 
 Public gateway certificates use normal platform trust. Private local gateway trust is application-owned and portable: an allowed first-use bootstrap is followed by validation against the cluster root and gateway GUID identity, then persisted trust binds gateway name, gateway ID, cluster ID, and root CA. Never replace this with a permanent accept-any-certificate callback. First-use trust is weaker and must remain limited/configurable and clearly documented.
 
+## Client security spine
+
+Client/data-plane authentication and node/fabric authentication are separate security domains. Client API keys, OAuth tokens, or user identities must never satisfy `FabricAuthenticationDefaults.Policy`; node certificates must never automatically grant client inference or administrative access.
+
+Client-facing routes use named `GatewayPolicies` rather than hard-coded `AllowAnonymous`. The default `GatewayAccess:Mode` is `Anonymous`, so this policy layer preserves zero-configuration homelab behavior. Future access-control work should change authentication schemes, authorization handlers, claims, and policy requirements centrally rather than revisiting every endpoint.
+
+Every proxied request is classified into a stable `GatewayOperation` and authorized before scheduler acquisition. Model restrictions, scopes, quotas, tool permissions, and audit context belong in resource authorization around `GatewayAuthorizationResource`; they do not belong in schedulers, backend adapters, or provider-specific code.
+
+All authenticated client schemes must produce a client security-domain claim using `GatewayClientAuthenticationDefaults.SecurityDomainClaim`. The client policies deliberately require this domain so a fabric principal cannot be mistaken for an application/user principal.
+
+The SDK obtains credentials through `IGatewayCredentialProvider` for each ordinary client request. `MagicAiGatewayClientOptions.ApiKey` is only a convenience wrapper around `StaticApiKeyCredentialProvider`. External login systems, expiring OAuth tokens, and service credentials should plug into the provider abstraction instead of modifying raw transport or higher-level SDK APIs.
+
+Do not attach client credentials to mDNS discovery or use them as gateway identity. TLS trust answers which gateway is being contacted; client credentials answer who is allowed to use it.
+
 ## Trust model
 
 Discovery, identity, and trust are separate concerns.

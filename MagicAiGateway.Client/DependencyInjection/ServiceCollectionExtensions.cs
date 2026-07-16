@@ -1,8 +1,10 @@
+using MagicAiGateway.Client.Authentication;
 using MagicAiGateway.Client.Configuration;
 using MagicAiGateway.Client.Connection;
 using MagicAiGateway.Client.Security;
 using MagicAiGateway.Client.Transport;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -22,8 +24,10 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(options);
         services.AddSingleton<IGatewayTrustStore, FileGatewayTrustStore>();
+        services.TryAddSingleton<IGatewayCredentialProvider>(
+            _ => GatewayCredentialProviderFactory.Create(options.ApiKey));
         services.AddSingleton(provider => new GatewayConnection(
-            provider.GetRequiredService<MagicAiGatewayClientOptions>(),
+            provider.GetRequiredService<MagicAiGatewayClientOptions>().CloneWithoutCredentials(),
             provider.GetRequiredService<IGatewayTrustStore>(),
             provider.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance));
         services.AddSingleton<IGatewayConnection>(provider => provider.GetRequiredService<GatewayConnection>());
