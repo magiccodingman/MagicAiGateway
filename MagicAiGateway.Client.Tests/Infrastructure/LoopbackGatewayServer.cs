@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
-using MagicAiGateway.Client.Protocol;
+using System.Text.Json.Nodes;
+using MagicAiGateway.Protocol;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -71,9 +72,26 @@ internal sealed class LoopbackGatewayServer : IAsyncDisposable
                 GatewayId,
                 ClusterId,
                 MagicAiGatewayProtocol.CurrentVersion,
-                MinimumClientProtocolVersion: 1,
+                MagicAiGatewayProtocol.MinimumSupportedVersion,
                 RootCertificateBase64: string.Empty,
-                Features: ["openai-proxy", "streaming", "gateway-protocol"]));
+                Features: ["openai-proxy", "streaming", "gateway-protocol", "service-catalog"]));
+        });
+
+        _application.MapGet(MagicAiGatewayProtocol.ServicesPath, (HttpContext context) =>
+        {
+            Capture(context, null);
+            return Results.Json(new MagicServiceCatalog
+            {
+                Data = [CreateManagedToolsDescriptor()]
+            }, MagicProtocolJson.Options);
+        });
+
+        _application.MapGet(MagicAiGatewayProtocol.ServicesPath + "/{name}", (HttpContext context, string name) =>
+        {
+            Capture(context, null);
+            return name == MagicServiceNames.ManagedTools
+                ? Results.Json(CreateManagedToolsDescriptor(), MagicProtocolJson.Options)
+                : Results.NotFound();
         });
 
         _application.MapGet("/v1/models", (HttpContext context) =>
@@ -108,40 +126,65 @@ internal sealed class LoopbackGatewayServer : IAsyncDisposable
 
         var stream = document.RootElement.TryGetProperty("stream", out var streamElement) &&
                      streamElement.ValueKind == JsonValueKind.True;
+        var magicEnabled = document.RootElement.TryGetProperty(
+            MagicAiGatewayProtocol.PropertyName,
+            out var magicElement) &&
+            magicElement.ValueKind == JsonValueKind.Object;
+        var enriched = magicEnabled &&
+                       magicElement.TryGetProperty("response_mode", out var responseMode) &&
+                       responseMode.GetString() == MagicResponseModes.Enriched;
+
         if (!stream)
         {
-            await context.Response.WriteAsJsonAsync(new
-            {
-                id = "chatcmpl-client-test",
-                @object = "chat.completion",
-                created = 1,
-                model = "Qwen36-27B",
-                choices = new[]
-                {
-                    new
-                    {
-                        index = 0,
-                        finish_reason = "stop",
-                        message = new
-                        {
-                            role = "assistant",
-                            content = "gateway client test response"
-                        }
-                    }
-                }
-            }, context.RequestAborted).ConfigureAwait(false);
+            var response = CreateCompletion(magicEnabled);
+            await context.Response.WriteAsJsonAsync(
+                response,
+                MagicProtocolJson.Options,
+                context.RequestAborted).ConfigureAwait(false);
             return;
         }
 
         context.Response.StatusCode = StatusCodes.Status200OK;
         context.Response.ContentType = "text/event-stream";
-        var events = new[]
+        var metadata = CreateRunMetadata();
+        var events = new List<string>
         {
-            "data: {\"id\":\"chatcmpl-client-test\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"gateway \"},\"finish_reason\":null}]}\n\n",
-            "data: {\"id\":\"chatcmpl-client-test\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"client test response\"},\"finish_reason\":null}]}\n\n",
-            "data: {\"id\":\"chatcmpl-client-test\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
-            "data: [DONE]\n\n"
+            "data: {\"id\":\"chatcmpl-client-test\",\"object\":\"chat.completion.chunk\",\"model\":\"Qwen36-27B\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"reasoning_content\":\"checking tools... \"},\"finish_reason\":null}]}\n\n",
+            "data: {\"id\":\"chatcmpl-client-test\",\"object\":\"chat.completion.chunk\",\"model\":\"Qwen36-27B\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"gateway \"},\"finish_reason\":null}]}\n\n",
+            "data: {\"id\":\"chatcmpl-client-test\",\"object\":\"chat.completion.chunk\",\"model\":\"Qwen36-27B\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"client test response\"},\"finish_reason\":null}]}\n\n"
         };
+
+        var finalChunk = new MagicChatCompletionChunk
+        {
+            Id = "chatcmpl-client-test",
+            Model = "Qwen36-27B",
+            Choices =
+            [
+                new MagicChatChunkChoice
+                {
+                    Index = 0,
+                    Delta = new MagicChatDelta(),
+                    FinishReason = "stop"
+                }
+            ],
+            Usage = new MagicTokenUsage
+            {
+                PromptTokens = magicEnabled ? 4200 : 100,
+                CompletionTokens = magicEnabled ? 950 : 20,
+                TotalTokens = magicEnabled ? 5150 : 120,
+                CompletionTokenDetails = new MagicCompletionTokenDetails
+                {
+                    ReasoningTokens = magicEnabled ? 700 : 5
+                }
+            },
+            MagicAiGateway = magicEnabled ? metadata : null
+        };
+        events.Add($"data: {JsonSerializer.Serialize(finalChunk, MagicProtocolJson.Options)}\n\n");
+        if (enriched)
+        {
+            events.Add($"event: {MagicStreamEventTypes.RunCompleted}\ndata: {JsonSerializer.Serialize(metadata, MagicProtocolJson.Options)}\n\n");
+        }
+        events.Add("data: [DONE]\n\n");
 
         foreach (var eventData in events)
         {
@@ -149,6 +192,92 @@ internal sealed class LoopbackGatewayServer : IAsyncDisposable
             await context.Response.Body.FlushAsync(context.RequestAborted).ConfigureAwait(false);
         }
     }
+
+    private static MagicChatCompletionResponse CreateCompletion(bool magicEnabled) => new()
+    {
+        Id = "chatcmpl-client-test",
+        Created = 1,
+        Model = "Qwen36-27B",
+        Choices =
+        [
+            new MagicChatChoice
+            {
+                Index = 0,
+                FinishReason = "stop",
+                Message = MagicChatMessage.Assistant("gateway client test response")
+            }
+        ],
+        Usage = new MagicTokenUsage
+        {
+            PromptTokens = magicEnabled ? 4200 : 100,
+            CompletionTokens = magicEnabled ? 950 : 20,
+            TotalTokens = magicEnabled ? 5150 : 120,
+            CompletionTokenDetails = new MagicCompletionTokenDetails
+            {
+                ReasoningTokens = magicEnabled ? 700 : 5
+            }
+        },
+        MagicAiGateway = magicEnabled ? CreateRunMetadata() : null
+    };
+
+    private static MagicRunMetadata CreateRunMetadata() => new()
+    {
+        RunId = "run_loopback",
+        Service = MagicServiceNames.ManagedTools,
+        Status = MagicRunStatuses.Completed,
+        FinishReason = "stop",
+        ModelCalls = 3,
+        ToolCalls = 2,
+        UsageAccuracy = MagicUsageAccuracy.ProviderReported,
+        Usage = new MagicTokenUsage
+        {
+            PromptTokens = 4200,
+            CompletionTokens = 950,
+            TotalTokens = 5150,
+            CompletionTokenDetails = new MagicCompletionTokenDetails { ReasoningTokens = 700 }
+        },
+        ModelCallUsage =
+        [
+            new MagicModelCallUsage
+            {
+                Sequence = 1,
+                Model = "Qwen36-27B",
+                Usage = new MagicTokenUsage { PromptTokens = 1000, CompletionTokens = 150, TotalTokens = 1150 }
+            },
+            new MagicModelCallUsage
+            {
+                Sequence = 2,
+                Model = "Qwen36-27B",
+                Usage = new MagicTokenUsage { PromptTokens = 1450, CompletionTokens = 200, TotalTokens = 1650 }
+            },
+            new MagicModelCallUsage
+            {
+                Sequence = 3,
+                Model = "Qwen36-27B",
+                Usage = new MagicTokenUsage { PromptTokens = 1750, CompletionTokens = 600, TotalTokens = 2350 }
+            }
+        ]
+    };
+
+    private static MagicServiceDescriptor CreateManagedToolsDescriptor() => new()
+    {
+        Name = MagicServiceNames.ManagedTools,
+        Version = 1,
+        Description = "Loopback managed tool service.",
+        Availability = "scaffolded",
+        SupportedEndpoints = ["/v1/chat/completions"],
+        DefaultRunTimeoutSeconds = 1800,
+        MaximumRunTimeoutSeconds = 3600,
+        OptionsSchema = new JsonObject
+        {
+            ["type"] = "object",
+            ["properties"] = new JsonObject
+            {
+                ["mcp_profile"] = new JsonObject { ["type"] = "string" }
+            }
+        },
+        StreamingEvents = [MagicStreamEventTypes.RunCompleted]
+    };
 
     private void Capture(HttpContext context, string? body) =>
         _requests.Enqueue(new CapturedGatewayRequest(
