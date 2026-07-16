@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\MagicAiGateway.Client\MagicAiGateway.Client.csproj" />
+    <ProjectReference Include="..\MagicAiGateway.Protocol\MagicAiGateway.Protocol.csproj" />
     <ProjectReference Include="..\SharedMagic\SharedMagic.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
