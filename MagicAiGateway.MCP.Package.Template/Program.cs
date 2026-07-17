@@ -22,8 +22,9 @@ public static class Program
                 "A controller-style C# template for compiled MagicAiGateway MCP packages.";
         });
 
-        // Alternative: load package identity from a UTF-8 JSON file beside the
-        // published library instead of configuring it inline.
+        // Alternative: load package identity from a UTF-8 JSON file instead of
+        // configuring it inline. Relative paths use the embedding host's application
+        // base directory; an absolute path may be used for another deployment layout.
         // builder.Package.AddManifestFile("magic-mcp-package.json");
 
         // Normal hosted services start and stop independently for every package instance.
