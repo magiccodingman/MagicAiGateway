@@ -158,11 +158,74 @@ public sealed class MagicMcpPackageGenerator : IIncrementalGenerator
         source.AppendLine("            }");
         source.AppendLine("        }");
         source.AppendLine("    }");
+        source.AppendLine();
+        AppendNativeExports(source);
         source.AppendLine("}");
 
         context.AddSource(
             "MagicMcpPackage.Generated.g.cs",
             SourceText.From(source.ToString(), Encoding.UTF8));
+    }
+
+    private static void AppendNativeExports(StringBuilder source)
+    {
+        source.AppendLine("    public static class MagicMcpGeneratedNativeExports");
+        source.AppendLine("    {");
+
+        AppendExportAttribute(source, "magic_mcp_get_abi_version");
+        source.AppendLine("        public static int GetAbiVersion() =>");
+        source.AppendLine("            global::MagicAiGateway.MCP.Package.Runtime.MagicMcpExports.GetAbiVersion();");
+        source.AppendLine();
+
+        AppendExportAttribute(source, "magic_mcp_get_manifest");
+        source.AppendLine("        public static int GetManifest(nint output, nuint outputCapacity, nint outputLength) =>");
+        source.AppendLine("            global::MagicAiGateway.MCP.Package.Runtime.MagicMcpExports.GetManifest(output, outputCapacity, outputLength);");
+        source.AppendLine();
+
+        AppendExportAttribute(source, "magic_mcp_start_instance");
+        source.AppendLine("        public static int StartInstance(nint configurationJson, nuint configurationLength, nint instanceIdOutput) =>");
+        source.AppendLine("            global::MagicAiGateway.MCP.Package.Runtime.MagicMcpExports.StartInstance(configurationJson, configurationLength, instanceIdOutput);");
+        source.AppendLine();
+
+        AppendExportAttribute(source, "magic_mcp_send");
+        source.AppendLine("        public static int Send(nint instanceId, nint message, nuint messageLength) =>");
+        source.AppendLine("            global::MagicAiGateway.MCP.Package.Runtime.MagicMcpExports.Send(instanceId, message, messageLength);");
+        source.AppendLine();
+
+        AppendExportAttribute(source, "magic_mcp_receive");
+        source.AppendLine("        public static int Receive(nint instanceId, nint output, nuint outputCapacity, nint outputLength, int timeoutMilliseconds) =>");
+        source.AppendLine("            global::MagicAiGateway.MCP.Package.Runtime.MagicMcpExports.Receive(instanceId, output, outputCapacity, outputLength, timeoutMilliseconds);");
+        source.AppendLine();
+
+        AppendExportAttribute(source, "magic_mcp_stop_instance");
+        source.AppendLine("        public static int StopInstance(nint instanceId) =>");
+        source.AppendLine("            global::MagicAiGateway.MCP.Package.Runtime.MagicMcpExports.StopInstance(instanceId);");
+        source.AppendLine();
+
+        AppendExportAttribute(source, "magic_mcp_list_instances");
+        source.AppendLine("        public static int ListInstances(nint output, nuint outputCapacity, nint outputLength) =>");
+        source.AppendLine("            global::MagicAiGateway.MCP.Package.Runtime.MagicMcpExports.ListInstances(output, outputCapacity, outputLength);");
+        source.AppendLine();
+
+        AppendExportAttribute(source, "magic_mcp_shutdown");
+        source.AppendLine("        public static int Shutdown() =>");
+        source.AppendLine("            global::MagicAiGateway.MCP.Package.Runtime.MagicMcpExports.Shutdown();");
+        source.AppendLine();
+
+        AppendExportAttribute(source, "magic_mcp_get_last_error");
+        source.AppendLine("        public static int GetLastError(nint output, nuint outputCapacity, nint outputLength) =>");
+        source.AppendLine("            global::MagicAiGateway.MCP.Package.Runtime.MagicMcpExports.GetLastError(output, outputCapacity, outputLength);");
+
+        source.AppendLine("    }");
+    }
+
+    private static void AppendExportAttribute(StringBuilder source, string entryPoint)
+    {
+        source.AppendLine("        [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
+        source.Append("            EntryPoint = \"");
+        source.Append(entryPoint);
+        source.AppendLine("\",");
+        source.AppendLine("            CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
     }
 
     private static ImmutableArray<TSymbol> DistinctSymbols<TSymbol>(
