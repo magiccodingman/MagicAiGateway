@@ -63,6 +63,14 @@ public sealed class MagicMcpPackageAnalyzer : DiagnosticAnalyzer
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor ControllerRequiresTools = new(
+        "MAGICMCP107",
+        "MCP tool controllers must expose a tool",
+        "Tool controller '{0}' does not contain any methods marked [McpServerTool]",
+        "MagicAiGateway.MCP.Package",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
     [
         ToolTypeRequiresController,
@@ -70,7 +78,8 @@ public sealed class MagicMcpPackageAnalyzer : DiagnosticAnalyzer
         ControllerMustBeConcrete,
         ToolMethodRequiresController,
         ToolMethodMustBeInstance,
-        ControllerCannotBeSingleton
+        ControllerCannotBeSingleton,
+        ControllerRequiresTools
     ];
 
     public override void Initialize(AnalysisContext context)
@@ -105,9 +114,24 @@ public sealed class MagicMcpPackageAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if (hasToolTypeAttribute && derivesFromController && (type.IsAbstract || type.IsStatic))
+        if (!hasToolTypeAttribute || !derivesFromController)
+        {
+            return;
+        }
+
+        if (type.IsAbstract || type.IsStatic)
         {
             Report(context, ControllerMustBeConcrete, type, type.Name);
+            return;
+        }
+
+        bool hasToolMethod = type.GetMembers()
+            .OfType<IMethodSymbol>()
+            .Any(method => HasAttribute(method, ToolMethodAttributeName));
+
+        if (!hasToolMethod)
+        {
+            Report(context, ControllerRequiresTools, type, type.Name);
         }
     }
 
@@ -152,26 +176,39 @@ public sealed class MagicMcpPackageAnalyzer : DiagnosticAnalyzer
             if (typeArgument is INamedTypeSymbol namedType &&
                 DerivesFrom(namedType, ControllerBaseTypeName))
             {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    ControllerCannotBeSingleton,
-                    invocation.Syntax.GetLocation(),
-                    namedType.Name));
+                ReportSingleton(context, invocation, namedType);
                 return;
             }
         }
 
         foreach (IArgumentOperation argument in invocation.Arguments)
         {
+            if (argument.Value is ITypeOfOperation typeOfOperation &&
+                typeOfOperation.TypeOperand is INamedTypeSymbol reflectedType &&
+                DerivesFrom(reflectedType, ControllerBaseTypeName))
+            {
+                ReportSingleton(context, invocation, reflectedType);
+                return;
+            }
+
             if (argument.Value.Type is INamedTypeSymbol argumentType &&
                 DerivesFrom(argumentType, ControllerBaseTypeName))
             {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    ControllerCannotBeSingleton,
-                    invocation.Syntax.GetLocation(),
-                    argumentType.Name));
+                ReportSingleton(context, invocation, argumentType);
                 return;
             }
         }
+    }
+
+    private static void ReportSingleton(
+        OperationAnalysisContext context,
+        IInvocationOperation invocation,
+        INamedTypeSymbol controllerType)
+    {
+        context.ReportDiagnostic(Diagnostic.Create(
+            ControllerCannotBeSingleton,
+            invocation.Syntax.GetLocation(),
+            controllerType.Name));
     }
 
     private static bool HasAttribute(ISymbol symbol, string metadataName) =>
