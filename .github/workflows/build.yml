@@ -94,3 +94,5 @@ jobs:
           cat mcp-package-contents.txt
           grep -F 'README.md' mcp-package-contents.txt
           grep -F 'analyzers/dotnet/cs/MagicAiGateway.MCP.Package.Generators.dll' mcp-package-contents.txt
+      - name: Publish NuGet-only MCP package consumer
+        run: bash scripts/verify_mcp_nuget_consumer.sh artifacts
