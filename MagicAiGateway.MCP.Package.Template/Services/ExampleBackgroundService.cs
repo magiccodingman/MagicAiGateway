@@ -1,27 +1,23 @@
+using MagicAiGateway.MCP.Package;
 using Microsoft.Extensions.Hosting;
 
 namespace MagicAiGateway.MCP.Package.Template.Services;
 
 /// <summary>
-/// Demonstrates that normal hosted background services start and stop with each
-/// package instance.
+/// Demonstrates that ordinary hosted services start once for each package instance and
+/// receive graceful cancellation when that specific instance stops.
 /// </summary>
 public sealed class ExampleBackgroundService(
-    ExampleState state,
-    TimeProvider timeProvider) : BackgroundService
+    MagicMcpPackageInstanceContext packageInstance) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        state.RecordHeartbeat(timeProvider.GetUtcNow());
-
-        using PeriodicTimer timer = new(TimeSpan.FromSeconds(5), timeProvider);
+        // Initialize package-owned workers, connections, queues, or subscriptions here.
+        _ = packageInstance.InstanceId;
 
         try
         {
-            while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
-            {
-                state.RecordHeartbeat(timeProvider.GetUtcNow());
-            }
+            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {

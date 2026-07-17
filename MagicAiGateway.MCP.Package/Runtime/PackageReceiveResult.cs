@@ -1,4 +1,4 @@
-namespace MagicAiGateway.MCP.Package.Template.Runtime;
+namespace MagicAiGateway.MCP.Package.Runtime;
 
 internal readonly record struct PackageReceiveResult(
     MagicMcpStatus Status,

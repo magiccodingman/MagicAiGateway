@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace MagicAiGateway.MCP.Package.Template.Runtime;
+namespace MagicAiGateway.MCP.Package.Runtime;
 
 internal static class InteropErrorState
 {

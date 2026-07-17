@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace MagicAiGateway.MCP.Package.Template.Runtime;
+namespace MagicAiGateway.MCP.Package.Runtime;
 
 internal static class PackageRuntime
 {
@@ -8,6 +8,8 @@ internal static class PackageRuntime
 
     public static async Task<Guid> StartInstanceAsync(ReadOnlyMemory<byte> configurationJson)
     {
+        MagicMcpPackageDefinition definition = MagicMcpPackageRegistry.GetRequiredDefinition();
+
         Guid instanceId;
         do
         {
@@ -16,7 +18,7 @@ internal static class PackageRuntime
         while (Instances.ContainsKey(instanceId));
 
         PackageInstance instance = await PackageInstance
-            .StartAsync(instanceId, configurationJson.ToArray())
+            .StartAsync(definition, instanceId, configurationJson.ToArray())
             .ConfigureAwait(false);
 
         if (!Instances.TryAdd(instanceId, instance))
@@ -81,13 +83,10 @@ internal static class PackageRuntime
         }
         catch
         {
-            // The instance retains the terminal exception long enough for an active
-            // receive call to report it. The monitor's job is lifecycle cleanup.
+            // The instance retains its terminal exception long enough for an active
+            // receive call to report it. This monitor owns lifecycle cleanup only.
         }
 
-        // Explicit stop/shutdown removes the entry before completing the server task.
-        // If the entry still exists here, the MCP server ended on its own and this
-        // monitor owns cleanup.
         if (!Instances.TryRemove(instanceId, out PackageInstance? completedInstance))
         {
             return;
@@ -99,8 +98,8 @@ internal static class PackageRuntime
         }
         catch
         {
-            // No native caller exists on this path to receive a status code. The
-            // instance is already evicted and all cleanup has been attempted.
+            // No native caller exists on this path. The instance is already evicted
+            // and every cleanup path has been attempted.
         }
     }
 }

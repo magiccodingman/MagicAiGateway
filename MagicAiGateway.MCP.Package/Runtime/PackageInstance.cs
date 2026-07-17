@@ -2,13 +2,15 @@ using System.IO.Pipelines;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
-namespace MagicAiGateway.MCP.Package.Template.Runtime;
+namespace MagicAiGateway.MCP.Package.Runtime;
 
 internal sealed class PackageInstance : IAsyncDisposable
 {
@@ -36,7 +38,7 @@ internal sealed class PackageInstance : IAsyncDisposable
     private Exception? _terminalFailure;
     private int _disposed;
 
-    private PackageInstance(PackageInstanceContext context, IHost host)
+    private PackageInstance(MagicMcpPackageInstanceContext context, IHost host)
     {
         Context = context;
         _host = host;
@@ -62,17 +64,18 @@ internal sealed class PackageInstance : IAsyncDisposable
         _outputPumpTask = PumpOutgoingMessagesAsync(_lifetimeCts.Token);
     }
 
-    public PackageInstanceContext Context { get; }
+    public MagicMcpPackageInstanceContext Context { get; }
 
     internal Task Completion => _serverTask;
 
     public static async Task<PackageInstance> StartAsync(
+        MagicMcpPackageDefinition definition,
         Guid instanceId,
         ReadOnlyMemory<byte> configurationJson,
         CancellationToken cancellationToken = default)
     {
-        PackageInstanceContext context = new(instanceId, configurationJson);
-        IHost host = Program.BuildHost(context);
+        MagicMcpPackageInstanceContext context = new(instanceId, configurationJson);
+        IHost host = BuildHost(definition, context);
 
         try
         {
@@ -95,6 +98,53 @@ internal sealed class PackageInstance : IAsyncDisposable
         }
     }
 
+    private static IHost BuildHost(
+        MagicMcpPackageDefinition definition,
+        MagicMcpPackageInstanceContext context)
+    {
+        HostApplicationBuilder builder = Host.CreateEmptyApplicationBuilder(
+            new HostApplicationBuilderSettings
+            {
+                ApplicationName = definition.PackageAssembly.GetName().Name,
+                EnvironmentName = Environments.Production,
+                ContentRootPath = AppContext.BaseDirectory
+            });
+
+        // Embedded packages must not treat stdout/stderr or the parent process's
+        // appsettings/environment conventions as implicit package channels.
+        builder.Logging.ClearProviders();
+
+        if (!context.ConfigurationJson.IsEmpty)
+        {
+            builder.Configuration.AddJsonStream(
+                new MemoryStream(context.ConfigurationJson.ToArray(), writable: false));
+        }
+
+        // Service descriptors are a recipe. Type/factory singleton registrations are
+        // therefore instantiated once per package instance's service provider.
+        foreach (ServiceDescriptor descriptor in definition.ServiceDescriptors)
+        {
+            builder.Services.Add(descriptor);
+        }
+
+        // Framework-owned context is always the instance being created and cannot be
+        // replaced by a package registration.
+        builder.Services.AddSingleton(context);
+
+        // The manifest is authoritative for server identity. Developers may configure
+        // other MCP options through builder.Mcp or standard options registrations.
+        builder.Services.Configure<McpServerOptions>(options =>
+        {
+            options.ServerInfo = new Implementation
+            {
+                Name = definition.Manifest.Name,
+                Version = definition.Manifest.Version
+            };
+        });
+
+        return builder.Build();
+    }
+
     public async Task SendAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken = default)
     {
         ThrowIfStopped();
@@ -112,9 +162,6 @@ internal sealed class PackageInstance : IAsyncDisposable
                 throw new ArgumentException("An MCP JSON-RPC message must be a JSON object.", nameof(message));
             }
 
-            // The public ABI is length-framed and therefore accepts ordinary JSON
-            // whitespace. StreamServerTransport is newline-framed internally, so
-            // compact only at this private adapter boundary.
             using MemoryStream compactStream = new();
             using (Utf8JsonWriter writer = new(compactStream))
             {
@@ -197,11 +244,7 @@ internal sealed class PackageInstance : IAsyncDisposable
                         ? CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCts.Token)
                         : null;
 
-                    if (timeoutCts is not null)
-                    {
-                        timeoutCts.CancelAfter(timeoutMilliseconds);
-                    }
-
+                    timeoutCts?.CancelAfter(timeoutMilliseconds);
                     CancellationToken token = timeoutCts?.Token ?? _lifetimeCts.Token;
 
                     try
@@ -244,7 +287,10 @@ internal sealed class PackageInstance : IAsyncDisposable
 
             byte[] outgoingMessage = _pendingOutgoingMessage;
             _pendingOutgoingMessage = null;
-            return new PackageReceiveResult(MagicMcpStatus.Success, outgoingMessage, outgoingMessage.Length);
+            return new PackageReceiveResult(
+                MagicMcpStatus.Success,
+                outgoingMessage,
+                outgoingMessage.Length);
         }
         finally
         {
@@ -330,9 +376,6 @@ internal sealed class PackageInstance : IAsyncDisposable
         }
 
         Exception? failure = null;
-
-        // Lifetime cancellation releases blocked sends and receives before the
-        // shutdown path waits for their per-instance gates.
         _lifetimeCts.Cancel();
 
         await _sendGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
