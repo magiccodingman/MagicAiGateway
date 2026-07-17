@@ -32,8 +32,10 @@ jobs:
       - name: Verify native MCP ABI exports
         shell: bash
         run: |
-          library="$(find artifacts/mcp-package-template -maxdepth 1 -type f -name '*.so' -print -quit)"
-          test -n "$library"
+          find artifacts/mcp-package-template -maxdepth 1 -type f -printf '%f\n' | sort
+          library="artifacts/mcp-package-template/MagicAiGateway.MCP.Package.Template.so"
+          test -f "$library"
+          file "$library"
           nm -D --defined-only "$library" | awk '{print $3}' > native-exports.txt
           cat native-exports.txt
           for symbol in \
@@ -49,6 +51,15 @@ jobs:
           do
             grep -Fx "$symbol" native-exports.txt
           done
+      - name: Upload NativeAOT diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nativeaot-diagnostics
+          path: |
+            artifacts/mcp-package-template
+            native-exports.txt
+          if-no-files-found: ignore
       - name: Upload build log
         if: failure()
         uses: actions/upload-artifact@v4
