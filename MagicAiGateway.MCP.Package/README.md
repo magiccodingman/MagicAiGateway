@@ -1,6 +1,6 @@
 # MagicAiGateway.MCP.Package
 
-`MagicAiGateway.MCP.Package` is the C# framework for building compiled packages that implement the [MagicAiGateway MCP Package Protocol](../MCP/README.md). A consuming project publishes as a NativeAOT `.dll`, `.so`, or `.dylib`; this package supplies the native ABI, multi-instance runtime, MCP transport, lifecycle management, dependency injection, manifest handling, compile-time tool discovery, and developer guardrails.
+`MagicAiGateway.MCP.Package` is the C# framework for building compiled packages that implement the [MagicAiGateway MCP Package Protocol](https://github.com/magiccodingman/MagicAiGateway/blob/main/MCP/README.md). A consuming project publishes as a NativeAOT `.dll`, `.so`, or `.dylib`; this package supplies the native ABI, multi-instance runtime, MCP transport, lifecycle management, dependency injection, manifest handling, compile-time tool discovery, and developer guardrails.
 
 Package authors work with a small application surface:
 
@@ -34,7 +34,8 @@ public static class Program
         });
 
         // Alternative: load the author-controlled manifest fields from a UTF-8
-        // JSON file placed beside the published native library.
+        // JSON file. Relative paths use the embedding host's application base
+        // directory; an absolute path may be used for another deployment layout.
         // builder.Package.AddManifestFile("magic-mcp-package.json");
 
         builder.Services.AddHostedService<ExampleBackgroundService>();
@@ -43,7 +44,7 @@ public static class Program
 }
 ```
 
-The source generator creates the module initializer that calls this method and freezes the resulting package definition. Configuration failures are captured and surfaced through the native ABI diagnostics rather than escaping from library initialization.
+The source generator creates the module initializer that calls this method, emits the native ABI exports into the consuming package assembly, and freezes the resulting package definition. Configuration failures are captured and surfaced through the native ABI diagnostics rather than escaping from library initialization.
 
 ## Manifest
 
@@ -80,7 +81,7 @@ A file contains the same author-controlled fields:
 }
 ```
 
-Relative paths are resolved beside the loaded package library. The manifest must be available before the host starts an instance because `magic_mcp_get_manifest` is valid immediately after the library is loaded.
+Relative paths are resolved against `AppContext.BaseDirectory` of the embedding host process. Use an absolute path if deployment keeps package metadata elsewhere. The manifest must be available when the native library loads because `magic_mcp_get_manifest` is valid before the host starts an instance.
 
 ## MCP tool controllers
 
@@ -148,9 +149,11 @@ The analyzer reports build errors when:
 - `[McpServerToolType]` is used without `MagicMcpToolController`
 - a controller derives from the base but omits `[McpServerToolType]`
 - a controller is abstract or static
+- a controller contains no `[McpServerTool]` methods
 - `[McpServerTool]` appears outside a valid controller
 - a controller tool method is static
 - a controller is registered with `AddSingleton`
+- two methods expose the same MCP tool name
 - the package has no valid `[MagicMcpPackage]` configuration method, or has more than one
 
 The runtime repeats essential validation as defense in depth.
@@ -200,7 +203,6 @@ The consuming project, not this framework library, selects NativeAOT shared-libr
   <OutputType>Library</OutputType>
   <PublishAot>true</PublishAot>
   <NativeLib>Shared</NativeLib>
-  <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 </PropertyGroup>
 ```
 
@@ -212,7 +214,7 @@ dotnet publish -c Release -r linux-arm64
 dotnet publish -c Release -r win-x64
 ```
 
-The result is a native shared library exporting the ABI documented in [`MCP/magic_mcp_package.h`](../MCP/magic_mcp_package.h). The host loads it for the lifetime of the process, queries its manifest, starts independent instances, pumps MCP messages through `send` and `receive`, stops instances by ID, and calls global shutdown before process termination.
+The result is a native shared library exporting the ABI documented in [`MCP/magic_mcp_package.h`](https://github.com/magiccodingman/MagicAiGateway/blob/main/MCP/magic_mcp_package.h). The host loads it for the lifetime of the process, queries its manifest, starts independent instances, pumps MCP messages through `send` and `receive`, stops instances by ID, and calls global shutdown before process termination.
 
 NativeAOT is the C# mechanism for producing that native library. Rust, C++, Go, Zig, and other languages implement the same language-neutral ABI using their own native toolchains.
 
@@ -222,6 +224,6 @@ A package is trusted native code loaded into the host process. This framework do
 
 The language-neutral protocol and architectural reasoning are documented in:
 
-- [`MCP/README.md`](../MCP/README.md)
-- [`MCP/magic_mcp_package.h`](../MCP/magic_mcp_package.h)
-- [`Wiki/MCP-Package-Protocol.md`](../Wiki/MCP-Package-Protocol.md)
+- [MCP package ABI specification](https://github.com/magiccodingman/MagicAiGateway/blob/main/MCP/README.md)
+- [canonical C header](https://github.com/magiccodingman/MagicAiGateway/blob/main/MCP/magic_mcp_package.h)
+- [language-neutral implementation guide](https://github.com/magiccodingman/MagicAiGateway/blob/main/Wiki/MCP-Package-Protocol.md)
