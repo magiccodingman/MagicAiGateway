@@ -42,11 +42,9 @@ internal static class MagicMcpToolRegistrationExtensions
                     request =>
                     {
                         IServiceProvider requestServices = request.Services ?? rootServices;
-                        object target = ActivatorUtilities.CreateInstance(
-                            requestServices,
-                            typeof(TController));
+                        TController controller =
+                            ActivatorUtilities.CreateInstance<TController>(requestServices);
 
-                        TController controller = (TController)target;
                         controller.Initialize(
                             requestServices.GetRequiredService<MagicMcpPackageInstanceContext>());
 
