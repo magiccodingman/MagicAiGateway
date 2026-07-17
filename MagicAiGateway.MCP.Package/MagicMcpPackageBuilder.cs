@@ -17,6 +17,7 @@ public sealed class MagicMcpPackageBuilder
 {
     private readonly Assembly _packageAssembly;
     private int _built;
+    private bool _generatedToolRegistrationRequested;
 
     internal MagicMcpPackageBuilder(Assembly packageAssembly)
     {
@@ -37,10 +38,33 @@ public sealed class MagicMcpPackageBuilder
 
     /// <summary>
     /// Gets the official MCP server builder for advanced prompts, resources, filters,
-    /// or handlers. Tool controllers are normally registered through generated
-    /// <c>AddMcpTools()</c>.
+    /// or handlers.
     /// </summary>
     public IMcpServerBuilder Mcp { get; }
+
+    /// <summary>
+    /// Enables compile-time discovery and registration of every valid
+    /// <see cref="MagicMcpToolController"/> in the consuming package.
+    /// </summary>
+    public MagicMcpPackageBuilder AddMcpTools()
+    {
+        ThrowIfBuilt();
+        _generatedToolRegistrationRequested = true;
+        return this;
+    }
+
+    /// <summary>Applies the controller registrations emitted by the source generator.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void RegisterGeneratedTools(Action<MagicMcpPackageBuilder> registration)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        ThrowIfBuilt();
+
+        if (_generatedToolRegistrationRequested)
+        {
+            registration(this);
+        }
+    }
 
     /// <summary>Registers one generated controller type using per-invocation activation.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
