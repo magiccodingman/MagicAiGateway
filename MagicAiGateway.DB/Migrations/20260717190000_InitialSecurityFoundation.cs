@@ -146,7 +146,11 @@ public partial class InitialSecurityFoundation : Migration
         migrationBuilder.CreateIndex("IX_roles_BuiltInRole", "magic_gateway", "roles", "BuiltInRole", unique: true);
         migrationBuilder.CreateIndex("IX_roles_Name", "magic_gateway", "roles", "Name", unique: true);
         migrationBuilder.CreateIndex("IX_security_configuration_ActivatedByUserId", "magic_gateway", "security_configuration", "ActivatedByUserId");
-        migrationBuilder.CreateIndex("IX_security_principals_PrincipalType_Name", "magic_gateway", "security_principals", new[] { "PrincipalType", "Name" });
+        migrationBuilder.CreateIndex(
+            name: "IX_security_principals_PrincipalType_Name",
+            schema: "magic_gateway",
+            table: "security_principals",
+            columns: new[] { "PrincipalType", "Name" });
         migrationBuilder.CreateIndex("IX_users_NormalizedUsername", "magic_gateway", "users", "NormalizedUsername", unique: true);
         migrationBuilder.CreateIndex("IX_users_PrincipalId", "magic_gateway", "users", "PrincipalId", unique: true);
     }
