@@ -46,3 +46,5 @@ jobs:
         run: dotnet pack MagicAiGateway.Protocol/MagicAiGateway.Protocol.csproj --configuration Release --no-build --output artifacts
       - name: Pack client SDK
         run: dotnet pack MagicAiGateway.Client/MagicAiGateway.Client.csproj --configuration Release --no-build --output artifacts
+      - name: Pack MCP package framework
+        run: dotnet pack MagicAiGateway.MCP.Package/MagicAiGateway.MCP.Package.csproj --configuration Release --no-build --output artifacts
