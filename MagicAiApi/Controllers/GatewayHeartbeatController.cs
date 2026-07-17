@@ -1,3 +1,5 @@
+using MagicAiApi;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SharedMagic.Contracts;
 using SharedMagic.Security;
@@ -5,7 +7,7 @@ using SharedMagic.Security;
 namespace MagicAiApi.Controllers;
 
 [ApiController]
-[MagicFabricAuthorize]
+[Authorize(Policy = GatewayFabricPolicies.Node)]
 public sealed class GatewayHeartbeatController(GatewayNodeRegistry registry) : ControllerBase
 {
     [HttpPost("/fabric/v1/heartbeat")]

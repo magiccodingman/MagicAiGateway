@@ -49,7 +49,9 @@ public sealed record PairingRequest(
     string AdvertisedBaseUri,
     string CsrBase64,
     Guid? ChallengeId = null,
-    string? EnrollmentProofBase64 = null);
+    string? EnrollmentProofBase64 = null,
+    string PeerRole = "node",
+    string? ApplicationId = null);
 
 public sealed record PairingResponse(
     string Status,
@@ -86,7 +88,6 @@ public static class OpenAiErrors
     public static OpenAiErrorBody Overloaded(string message) =>
         new(new(message, "server_error", null, "queue_full"));
 }
-
 
 public static class PairingProof
 {

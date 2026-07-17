@@ -5,12 +5,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\MagicAiGateway.Client\MagicAiGateway.Client.csproj" />
-    <ProjectReference Include="..\MagicAiGateway.Protocol\MagicAiGateway.Protocol.csproj" />
+    <ProjectReference Include="..\MagicAiGateway.DB\MagicAiGateway.DB.csproj" />
     <ProjectReference Include="..\MagicAiGateway.DB.Contracts\MagicAiGateway.DB.Contracts.csproj" />
-    <ProjectReference Include="..\MagicAiGateway.DB.Client\MagicAiGateway.DB.Client.csproj" />
+    <ProjectReference Include="..\MagicAiGateway.Client\MagicAiGateway.Client.csproj" />
     <ProjectReference Include="..\SharedMagic\SharedMagic.csproj" />
+    <PackageReference Include="Docker.DotNet" Version="3.125.15" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
-    <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
   </ItemGroup>
 </Project>
