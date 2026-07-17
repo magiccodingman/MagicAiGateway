@@ -29,6 +29,26 @@ jobs:
           --runtime linux-x64
           --self-contained true
           --output artifacts/mcp-package-template
+      - name: Verify native MCP ABI exports
+        shell: bash
+        run: |
+          library="$(find artifacts/mcp-package-template -maxdepth 1 -type f -name '*.so' -print -quit)"
+          test -n "$library"
+          nm -D --defined-only "$library" | awk '{print $3}' > native-exports.txt
+          cat native-exports.txt
+          for symbol in \
+            magic_mcp_get_abi_version \
+            magic_mcp_get_manifest \
+            magic_mcp_start_instance \
+            magic_mcp_send \
+            magic_mcp_receive \
+            magic_mcp_stop_instance \
+            magic_mcp_list_instances \
+            magic_mcp_shutdown \
+            magic_mcp_get_last_error
+          do
+            grep -Fx "$symbol" native-exports.txt
+          done
       - name: Upload build log
         if: failure()
         uses: actions/upload-artifact@v4
@@ -48,3 +68,12 @@ jobs:
         run: dotnet pack MagicAiGateway.Client/MagicAiGateway.Client.csproj --configuration Release --no-build --output artifacts
       - name: Pack MCP package framework
         run: dotnet pack MagicAiGateway.MCP.Package/MagicAiGateway.MCP.Package.csproj --configuration Release --no-build --output artifacts
+      - name: Verify MCP package NuGet contents
+        shell: bash
+        run: |
+          package="$(find artifacts -maxdepth 1 -type f -name 'MagicAiGateway.MCP.Package.*.nupkg' ! -name '*.symbols.nupkg' -print -quit)"
+          test -n "$package"
+          unzip -l "$package" > mcp-package-contents.txt
+          cat mcp-package-contents.txt
+          grep -F 'README.md' mcp-package-contents.txt
+          grep -F 'analyzers/dotnet/cs/MagicAiGateway.MCP.Package.Generators.dll' mcp-package-contents.txt
