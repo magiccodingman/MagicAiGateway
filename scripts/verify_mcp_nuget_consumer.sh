@@ -79,7 +79,10 @@ EOF
 
 pushd "$work_directory" >/dev/null
 
-dotnet restore --configfile NuGet.Config
+dotnet restore \
+  --runtime linux-x64 \
+  --configfile NuGet.Config
+
 dotnet publish \
   --configuration Release \
   --runtime linux-x64 \
