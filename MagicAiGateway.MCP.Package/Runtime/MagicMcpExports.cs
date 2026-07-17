@@ -14,7 +14,7 @@ public static unsafe class MagicMcpExports
 
     [UnmanagedCallersOnly(
         EntryPoint = "magic_mcp_get_abi_version",
-        CallConvs = [typeof(CallConvCdecl)])]
+        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int GetAbiVersion()
     {
         InteropErrorState.Clear();
@@ -23,7 +23,7 @@ public static unsafe class MagicMcpExports
 
     [UnmanagedCallersOnly(
         EntryPoint = "magic_mcp_get_manifest",
-        CallConvs = [typeof(CallConvCdecl)])]
+        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int GetManifest(byte* output, nuint outputCapacity, nuint* outputLength)
     {
         InteropErrorState.Clear();
@@ -41,7 +41,7 @@ public static unsafe class MagicMcpExports
 
     [UnmanagedCallersOnly(
         EntryPoint = "magic_mcp_start_instance",
-        CallConvs = [typeof(CallConvCdecl)])]
+        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int StartInstance(
         byte* configurationJson,
         nuint configurationLength,
@@ -83,7 +83,7 @@ public static unsafe class MagicMcpExports
 
     [UnmanagedCallersOnly(
         EntryPoint = "magic_mcp_send",
-        CallConvs = [typeof(CallConvCdecl)])]
+        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int Send(
         byte* instanceId,
         byte* message,
@@ -127,7 +127,7 @@ public static unsafe class MagicMcpExports
 
     [UnmanagedCallersOnly(
         EntryPoint = "magic_mcp_receive",
-        CallConvs = [typeof(CallConvCdecl)])]
+        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int Receive(
         byte* instanceId,
         byte* output,
@@ -200,7 +200,7 @@ public static unsafe class MagicMcpExports
 
     [UnmanagedCallersOnly(
         EntryPoint = "magic_mcp_stop_instance",
-        CallConvs = [typeof(CallConvCdecl)])]
+        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int StopInstance(byte* instanceId)
     {
         InteropErrorState.Clear();
@@ -226,7 +226,7 @@ public static unsafe class MagicMcpExports
 
     [UnmanagedCallersOnly(
         EntryPoint = "magic_mcp_list_instances",
-        CallConvs = [typeof(CallConvCdecl)])]
+        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int ListInstances(byte* output, nuint outputCapacity, nuint* outputLength)
     {
         InteropErrorState.Clear();
@@ -251,7 +251,7 @@ public static unsafe class MagicMcpExports
 
     [UnmanagedCallersOnly(
         EntryPoint = "magic_mcp_shutdown",
-        CallConvs = [typeof(CallConvCdecl)])]
+        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int Shutdown()
     {
         InteropErrorState.Clear();
@@ -269,7 +269,7 @@ public static unsafe class MagicMcpExports
 
     [UnmanagedCallersOnly(
         EntryPoint = "magic_mcp_get_last_error",
-        CallConvs = [typeof(CallConvCdecl)])]
+        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int GetLastError(byte* output, nuint outputCapacity, nuint* outputLength)
     {
         try
