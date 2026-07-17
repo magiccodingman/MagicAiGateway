@@ -95,4 +95,16 @@ jobs:
           grep -F 'README.md' mcp-package-contents.txt
           grep -F 'analyzers/dotnet/cs/MagicAiGateway.MCP.Package.Generators.dll' mcp-package-contents.txt
       - name: Publish NuGet-only MCP package consumer
-        run: bash scripts/verify_mcp_nuget_consumer.sh artifacts
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/verify_mcp_nuget_consumer.sh artifacts 2>&1 | tee nuget-consumer.log
+      - name: Upload NuGet consumer diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-consumer-diagnostics
+          path: |
+            nuget-consumer.log
+            artifacts/MagicAiGateway.MCP.Package.*.nupkg
+          if-no-files-found: ignore
