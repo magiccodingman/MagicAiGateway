@@ -67,9 +67,8 @@ public sealed class MagicMcpPackageGenerator : IIncrementalGenerator
         ImmutableArray<IMethodSymbol> configurationMethods,
         ImmutableArray<INamedTypeSymbol> discoveredToolTypes)
     {
-        ImmutableArray<IMethodSymbol> distinctConfigurations = configurationMethods
-            .Distinct(SymbolEqualityComparer.Default)
-            .ToImmutableArray();
+        ImmutableArray<IMethodSymbol> distinctConfigurations =
+            DistinctSymbols(configurationMethods);
 
         if (distinctConfigurations.Length == 0)
         {
@@ -99,8 +98,7 @@ public sealed class MagicMcpPackageGenerator : IIncrementalGenerator
             return;
         }
 
-        List<INamedTypeSymbol> validTools = discoveredToolTypes
-            .Distinct(SymbolEqualityComparer.Default)
+        List<INamedTypeSymbol> validTools = DistinctSymbols(discoveredToolTypes)
             .Where(type =>
                 !type.IsAbstract &&
                 DerivesFrom(type, ControllerBaseTypeName))
@@ -165,6 +163,24 @@ public sealed class MagicMcpPackageGenerator : IIncrementalGenerator
         context.AddSource(
             "MagicMcpPackage.Generated.g.cs",
             SourceText.From(source.ToString(), Encoding.UTF8));
+    }
+
+    private static ImmutableArray<TSymbol> DistinctSymbols<TSymbol>(
+        ImmutableArray<TSymbol> symbols)
+        where TSymbol : class, ISymbol
+    {
+        HashSet<ISymbol> seen = new(SymbolEqualityComparer.Default);
+        ImmutableArray<TSymbol>.Builder distinct = ImmutableArray.CreateBuilder<TSymbol>();
+
+        foreach (TSymbol symbol in symbols)
+        {
+            if (seen.Add(symbol))
+            {
+                distinct.Add(symbol);
+            }
+        }
+
+        return distinct.ToImmutable();
     }
 
     private static bool IsValidConfigurationMethod(IMethodSymbol method)
