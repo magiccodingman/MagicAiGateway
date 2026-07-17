@@ -15,6 +15,8 @@ public sealed class MagicMcpPackageGenerator : IIncrementalGenerator
         "MagicAiGateway.MCP.Package.MagicMcpPackageBuilder";
     private const string ToolTypeAttributeName =
         "ModelContextProtocol.Server.McpServerToolTypeAttribute";
+    private const string ToolMethodAttributeName =
+        "ModelContextProtocol.Server.McpServerToolAttribute";
     private const string ControllerBaseTypeName =
         "MagicAiGateway.MCP.Package.MagicMcpToolController";
 
@@ -38,6 +40,14 @@ public sealed class MagicMcpPackageGenerator : IIncrementalGenerator
         "MAGICMCP003",
         "Package configuration method has an invalid signature",
         "Method '{0}' must be an accessible, non-generic static void method with exactly one MagicMcpPackageBuilder parameter",
+        "MagicAiGateway.MCP.Package",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor DuplicateToolName = new(
+        "MAGICMCP004",
+        "MCP tool names must be unique",
+        "MCP tool name '{0}' is used by both '{1}' and '{2}'",
         "MagicAiGateway.MCP.Package",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -105,6 +115,11 @@ public sealed class MagicMcpPackageGenerator : IIncrementalGenerator
             .OrderBy(type => type.ToDisplayString(), StringComparer.Ordinal)
             .ToList();
 
+        if (ReportDuplicateToolNames(context, validTools))
+        {
+            return;
+        }
+
         string configureType = configurationMethod.ContainingType.ToDisplayString(
             SymbolDisplayFormat.FullyQualifiedFormat);
         string configureMethod = configurationMethod.Name;
@@ -165,6 +180,51 @@ public sealed class MagicMcpPackageGenerator : IIncrementalGenerator
         context.AddSource(
             "MagicMcpPackage.Generated.g.cs",
             SourceText.From(source.ToString(), Encoding.UTF8));
+    }
+
+    private static bool ReportDuplicateToolNames(
+        SourceProductionContext context,
+        IEnumerable<INamedTypeSymbol> toolTypes)
+    {
+        Dictionary<string, IMethodSymbol> names = new(StringComparer.Ordinal);
+        bool foundDuplicate = false;
+
+        foreach (INamedTypeSymbol toolType in toolTypes)
+        {
+            foreach (IMethodSymbol method in toolType.GetMembers().OfType<IMethodSymbol>())
+            {
+                AttributeData? toolAttribute = method.GetAttributes().FirstOrDefault(attribute =>
+                    attribute.AttributeClass?.ToDisplayString() == ToolMethodAttributeName);
+                if (toolAttribute is null)
+                {
+                    continue;
+                }
+
+                string toolName = method.Name;
+                foreach (KeyValuePair<string, TypedConstant> namedArgument in toolAttribute.NamedArguments)
+                {
+                    if (namedArgument.Key == "Name" && namedArgument.Value.Value is string explicitName)
+                    {
+                        toolName = explicitName;
+                        break;
+                    }
+                }
+
+                if (!names.TryAdd(toolName, method))
+                {
+                    IMethodSymbol firstMethod = names[toolName];
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        DuplicateToolName,
+                        method.Locations.FirstOrDefault(),
+                        toolName,
+                        firstMethod.ToDisplayString(),
+                        method.ToDisplayString()));
+                    foundDuplicate = true;
+                }
+            }
+        }
+
+        return foundDuplicate;
     }
 
     private static void AppendNativeExports(StringBuilder source)
