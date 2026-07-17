@@ -36,7 +36,9 @@ jobs:
           library="artifacts/mcp-package-template/MagicAiGateway.MCP.Package.Template.so"
           test -f "$library"
           file "$library"
-          nm -D --defined-only "$library" | awk '{print $3}' > native-exports.txt
+          nm -D --defined-only "$library" |
+            awk '{ name = $NF; sub(/@@.*/, "", name); print name }' |
+            sort -u > native-exports.txt
           cat native-exports.txt
           for symbol in \
             magic_mcp_get_abi_version \
@@ -51,6 +53,10 @@ jobs:
           do
             grep -Fx "$symbol" native-exports.txt
           done
+      - name: Smoke test native MCP package
+        run: >-
+          python3 scripts/verify_mcp_package.py
+          artifacts/mcp-package-template/MagicAiGateway.MCP.Package.Template.so
       - name: Upload NativeAOT diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
