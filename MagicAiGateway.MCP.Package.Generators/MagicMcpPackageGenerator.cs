@@ -99,15 +99,11 @@ public sealed class MagicMcpPackageGenerator : IIncrementalGenerator
             return;
         }
 
-        INamedTypeSymbol? controllerBase = configurationMethod.ContainingAssembly
-            .GetTypeByMetadataName(ControllerBaseTypeName);
-
         List<INamedTypeSymbol> validTools = discoveredToolTypes
             .Distinct(SymbolEqualityComparer.Default)
             .Where(type =>
-                controllerBase is not null &&
                 !type.IsAbstract &&
-                DerivesFrom(type, controllerBase))
+                DerivesFrom(type, ControllerBaseTypeName))
             .OrderBy(type => type.ToDisplayString(), StringComparer.Ordinal)
             .ToList();
 
@@ -193,11 +189,11 @@ public sealed class MagicMcpPackageGenerator : IIncrementalGenerator
         return method.Parameters[0].Type.ToDisplayString() == BuilderTypeName;
     }
 
-    private static bool DerivesFrom(INamedTypeSymbol type, INamedTypeSymbol expectedBase)
+    private static bool DerivesFrom(INamedTypeSymbol type, string expectedBaseTypeName)
     {
         for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
         {
-            if (SymbolEqualityComparer.Default.Equals(current, expectedBase))
+            if (current.ToDisplayString() == expectedBaseTypeName)
             {
                 return true;
             }
