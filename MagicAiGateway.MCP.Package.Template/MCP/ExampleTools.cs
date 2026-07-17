@@ -23,13 +23,11 @@ public sealed class ExampleTools(IConfiguration configuration) : MagicMcpToolCon
 
     [McpServerTool(Name = "example_instance_status")]
     [Description("Returns basic information about the current package instance.")]
-    public object GetInstanceStatus()
+    public string GetInstanceStatus()
     {
-        return new
-        {
-            PackageInstance.InstanceId,
-            PackageInstance.StartedAtUtc,
-            ConfigurationExample = configuration["example:message"] ?? "not configured"
-        };
+        string configuredMessage = configuration["example:message"] ?? "not configured";
+
+        return $"Instance {PackageInstance.InstanceId} started at " +
+               $"{PackageInstance.StartedAtUtc:O}; example configuration: {configuredMessage}.";
     }
 }
