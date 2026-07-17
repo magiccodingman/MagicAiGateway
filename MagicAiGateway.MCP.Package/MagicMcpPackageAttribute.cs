@@ -5,4 +5,6 @@ namespace MagicAiGateway.MCP.Package;
 /// A source generator creates the NativeAOT-safe package bootstrap around this method.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
-public sealed class MagicMcpPackageAttribute : Attribute;
+public sealed class MagicMcpPackageAttribute : Attribute
+{
+}
