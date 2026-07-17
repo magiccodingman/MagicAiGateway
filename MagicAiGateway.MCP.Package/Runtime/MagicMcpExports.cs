@@ -1,37 +1,36 @@
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+using System.ComponentModel;
 using System.Text.Json;
 
 namespace MagicAiGateway.MCP.Package.Runtime;
 
 /// <summary>
-/// Native C ABI exported from the final NativeAOT package library. The host owns all
-/// input and output buffers; no allocator or managed object crosses the boundary.
+/// Managed implementation behind the NativeAOT exports generated into the consuming
+/// package assembly. The host owns all input and output buffers; no allocator or
+/// managed object crosses the boundary.
 /// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public static unsafe class MagicMcpExports
 {
     public const int InstanceIdSize = 16;
 
-    [UnmanagedCallersOnly(
-        EntryPoint = "magic_mcp_get_abi_version",
-        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int GetAbiVersion()
     {
         InteropErrorState.Clear();
         return MagicMcpPackageManifest.CurrentAbiVersion;
     }
 
-    [UnmanagedCallersOnly(
-        EntryPoint = "magic_mcp_get_manifest",
-        CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static int GetManifest(byte* output, nuint outputCapacity, nuint* outputLength)
+    public static int GetManifest(nint output, nuint outputCapacity, nint outputLength)
     {
         InteropErrorState.Clear();
 
         try
         {
             MagicMcpPackageDefinition definition = MagicMcpPackageRegistry.GetRequiredDefinition();
-            return CopyToCaller(definition.ManifestJsonUtf8, output, outputCapacity, outputLength);
+            return CopyToCaller(
+                definition.ManifestJsonUtf8,
+                (byte*)output,
+                outputCapacity,
+                (nuint*)outputLength);
         }
         catch (Exception exception)
         {
@@ -39,24 +38,25 @@ public static unsafe class MagicMcpExports
         }
     }
 
-    [UnmanagedCallersOnly(
-        EntryPoint = "magic_mcp_start_instance",
-        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int StartInstance(
-        byte* configurationJson,
+        nint configurationJson,
         nuint configurationLength,
-        byte* instanceIdOutput)
+        nint instanceIdOutput)
     {
         InteropErrorState.Clear();
 
         try
         {
-            if (instanceIdOutput == null)
+            byte* instanceIdPointer = (byte*)instanceIdOutput;
+            if (instanceIdPointer == null)
             {
                 return Fail(MagicMcpStatus.InvalidArgument, "instanceIdOutput must point to 16 writable bytes.");
             }
 
-            byte[] configuration = CopyInput(configurationJson, configurationLength, "configurationJson");
+            byte[] configuration = CopyInput(
+                (byte*)configurationJson,
+                configurationLength,
+                "configurationJson");
             ValidateConfiguration(configuration);
 
             Guid instanceId = PackageRuntime
@@ -64,7 +64,7 @@ public static unsafe class MagicMcpExports
                 .GetAwaiter()
                 .GetResult();
 
-            instanceId.TryWriteBytes(new Span<byte>(instanceIdOutput, InstanceIdSize));
+            instanceId.TryWriteBytes(new Span<byte>(instanceIdPointer, InstanceIdSize));
             return (int)MagicMcpStatus.Success;
         }
         catch (ArgumentException exception)
@@ -81,25 +81,22 @@ public static unsafe class MagicMcpExports
         }
     }
 
-    [UnmanagedCallersOnly(
-        EntryPoint = "magic_mcp_send",
-        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int Send(
-        byte* instanceId,
-        byte* message,
+        nint instanceId,
+        nint message,
         nuint messageLength)
     {
         InteropErrorState.Clear();
 
         try
         {
-            Guid id = ReadInstanceId(instanceId);
+            Guid id = ReadInstanceId((byte*)instanceId);
             if (!PackageRuntime.TryGetInstance(id, out PackageInstance? instance) || instance is null)
             {
                 return Fail(MagicMcpStatus.InstanceNotFound, "The package instance does not exist.");
             }
 
-            byte[] messageBytes = CopyInput(message, messageLength, "message");
+            byte[] messageBytes = CopyInput((byte*)message, messageLength, "message");
             instance.SendAsync(messageBytes).GetAwaiter().GetResult();
             return (int)MagicMcpStatus.Success;
         }
@@ -125,28 +122,28 @@ public static unsafe class MagicMcpExports
         }
     }
 
-    [UnmanagedCallersOnly(
-        EntryPoint = "magic_mcp_receive",
-        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int Receive(
-        byte* instanceId,
-        byte* output,
+        nint instanceId,
+        nint output,
         nuint outputCapacity,
-        nuint* outputLength,
+        nint outputLength,
         int timeoutMilliseconds)
     {
         InteropErrorState.Clear();
 
         try
         {
-            if (outputLength == null)
+            nuint* outputLengthPointer = (nuint*)outputLength;
+            byte* outputPointer = (byte*)output;
+
+            if (outputLengthPointer == null)
             {
                 return Fail(MagicMcpStatus.InvalidArgument, "outputLength cannot be null.");
             }
 
-            *outputLength = 0;
+            *outputLengthPointer = 0;
 
-            if (output == null && outputCapacity != 0)
+            if (outputPointer == null && outputCapacity != 0)
             {
                 return Fail(MagicMcpStatus.InvalidArgument, "A non-zero output capacity requires an output buffer.");
             }
@@ -156,7 +153,7 @@ public static unsafe class MagicMcpExports
                 return Fail(MagicMcpStatus.InvalidArgument, "The output buffer is too large for this ABI version.");
             }
 
-            Guid id = ReadInstanceId(instanceId);
+            Guid id = ReadInstanceId((byte*)instanceId);
             if (!PackageRuntime.TryGetInstance(id, out PackageInstance? instance) || instance is null)
             {
                 return Fail(MagicMcpStatus.InstanceNotFound, "The package instance does not exist.");
@@ -167,11 +164,11 @@ public static unsafe class MagicMcpExports
                 .GetAwaiter()
                 .GetResult();
 
-            *outputLength = (nuint)result.RequiredLength;
+            *outputLengthPointer = (nuint)result.RequiredLength;
 
             if (result.Status == MagicMcpStatus.Success)
             {
-                result.Message!.AsSpan().CopyTo(new Span<byte>(output, result.Message.Length));
+                result.Message!.AsSpan().CopyTo(new Span<byte>(outputPointer, result.Message.Length));
             }
             else if (result.Status == MagicMcpStatus.BufferTooSmall)
             {
@@ -198,16 +195,13 @@ public static unsafe class MagicMcpExports
         }
     }
 
-    [UnmanagedCallersOnly(
-        EntryPoint = "magic_mcp_stop_instance",
-        CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static int StopInstance(byte* instanceId)
+    public static int StopInstance(nint instanceId)
     {
         InteropErrorState.Clear();
 
         try
         {
-            Guid id = ReadInstanceId(instanceId);
+            Guid id = ReadInstanceId((byte*)instanceId);
             bool stopped = PackageRuntime.StopInstanceAsync(id).GetAwaiter().GetResult();
 
             return stopped
@@ -224,10 +218,7 @@ public static unsafe class MagicMcpExports
         }
     }
 
-    [UnmanagedCallersOnly(
-        EntryPoint = "magic_mcp_list_instances",
-        CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static int ListInstances(byte* output, nuint outputCapacity, nuint* outputLength)
+    public static int ListInstances(nint output, nuint outputCapacity, nint outputLength)
     {
         InteropErrorState.Clear();
 
@@ -241,7 +232,11 @@ public static unsafe class MagicMcpExports
                 ids[index].TryWriteBytes(bytes.AsSpan(index * InstanceIdSize, InstanceIdSize));
             }
 
-            return CopyToCaller(bytes, output, outputCapacity, outputLength);
+            return CopyToCaller(
+                bytes,
+                (byte*)output,
+                outputCapacity,
+                (nuint*)outputLength);
         }
         catch (Exception exception)
         {
@@ -249,9 +244,6 @@ public static unsafe class MagicMcpExports
         }
     }
 
-    [UnmanagedCallersOnly(
-        EntryPoint = "magic_mcp_shutdown",
-        CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int Shutdown()
     {
         InteropErrorState.Clear();
@@ -267,15 +259,17 @@ public static unsafe class MagicMcpExports
         }
     }
 
-    [UnmanagedCallersOnly(
-        EntryPoint = "magic_mcp_get_last_error",
-        CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static int GetLastError(byte* output, nuint outputCapacity, nuint* outputLength)
+    public static int GetLastError(nint output, nuint outputCapacity, nint outputLength)
     {
         try
         {
             byte[] error = InteropErrorState.GetUtf8();
-            return CopyToCaller(error, output, outputCapacity, outputLength, preserveLastError: true);
+            return CopyToCaller(
+                error,
+                (byte*)output,
+                outputCapacity,
+                (nuint*)outputLength,
+                preserveLastError: true);
         }
         catch (Exception exception)
         {
