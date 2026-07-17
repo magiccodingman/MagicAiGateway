@@ -1,0 +1,208 @@
+using System.Collections.Immutable;
+using System.Text;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
+
+namespace MagicAiGateway.MCP.Package.Generators;
+
+[Generator(LanguageNames.CSharp)]
+public sealed class MagicMcpPackageGenerator : IIncrementalGenerator
+{
+    private const string PackageAttributeName =
+        "MagicAiGateway.MCP.Package.MagicMcpPackageAttribute";
+    private const string BuilderTypeName =
+        "MagicAiGateway.MCP.Package.MagicMcpPackageBuilder";
+    private const string ToolTypeAttributeName =
+        "ModelContextProtocol.Server.McpServerToolTypeAttribute";
+    private const string ControllerBaseTypeName =
+        "MagicAiGateway.MCP.Package.MagicMcpToolController";
+
+    private static readonly DiagnosticDescriptor MissingConfiguration = new(
+        "MAGICMCP001",
+        "Package configuration method is required",
+        "Exactly one static method marked [MagicMcpPackage] must configure this package",
+        "MagicAiGateway.MCP.Package",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor MultipleConfigurations = new(
+        "MAGICMCP002",
+        "Only one package configuration method is allowed",
+        "Package contains multiple [MagicMcpPackage] configuration methods",
+        "MagicAiGateway.MCP.Package",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor InvalidConfiguration = new(
+        "MAGICMCP003",
+        "Package configuration method has an invalid signature",
+        "Method '{0}' must be an accessible, non-generic static void method with exactly one MagicMcpPackageBuilder parameter",
+        "MagicAiGateway.MCP.Package",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public void Initialize(IncrementalGeneratorInitializationContext context)
+    {
+        IncrementalValuesProvider<IMethodSymbol> configurationMethods =
+            context.SyntaxProvider.ForAttributeWithMetadataName(
+                PackageAttributeName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (syntaxContext, _) => (IMethodSymbol)syntaxContext.TargetSymbol);
+
+        IncrementalValuesProvider<INamedTypeSymbol> toolTypes =
+            context.SyntaxProvider.ForAttributeWithMetadataName(
+                ToolTypeAttributeName,
+                static (node, _) => node is ClassDeclarationSyntax,
+                static (syntaxContext, _) => (INamedTypeSymbol)syntaxContext.TargetSymbol);
+
+        context.RegisterSourceOutput(
+            configurationMethods.Collect().Combine(toolTypes.Collect()),
+            static (productionContext, input) =>
+                Generate(productionContext, input.Left, input.Right));
+    }
+
+    private static void Generate(
+        SourceProductionContext context,
+        ImmutableArray<IMethodSymbol> configurationMethods,
+        ImmutableArray<INamedTypeSymbol> discoveredToolTypes)
+    {
+        ImmutableArray<IMethodSymbol> distinctConfigurations = configurationMethods
+            .Distinct(SymbolEqualityComparer.Default)
+            .ToImmutableArray();
+
+        if (distinctConfigurations.Length == 0)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(MissingConfiguration, Location.None));
+            return;
+        }
+
+        if (distinctConfigurations.Length > 1)
+        {
+            foreach (IMethodSymbol method in distinctConfigurations)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    MultipleConfigurations,
+                    method.Locations.FirstOrDefault()));
+            }
+
+            return;
+        }
+
+        IMethodSymbol configurationMethod = distinctConfigurations[0];
+        if (!IsValidConfigurationMethod(configurationMethod))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                InvalidConfiguration,
+                configurationMethod.Locations.FirstOrDefault(),
+                configurationMethod.ToDisplayString()));
+            return;
+        }
+
+        INamedTypeSymbol? controllerBase = configurationMethod.ContainingAssembly
+            .GetTypeByMetadataName(ControllerBaseTypeName);
+
+        List<INamedTypeSymbol> validTools = discoveredToolTypes
+            .Distinct(SymbolEqualityComparer.Default)
+            .Where(type =>
+                controllerBase is not null &&
+                !type.IsAbstract &&
+                DerivesFrom(type, controllerBase))
+            .OrderBy(type => type.ToDisplayString(), StringComparer.Ordinal)
+            .ToList();
+
+        string configureType = configurationMethod.ContainingType.ToDisplayString(
+            SymbolDisplayFormat.FullyQualifiedFormat);
+        string configureMethod = configurationMethod.Name;
+
+        StringBuilder source = new();
+        source.AppendLine("// <auto-generated />");
+        source.AppendLine("#nullable enable");
+        source.AppendLine("namespace MagicAiGateway.MCP.Package");
+        source.AppendLine("{");
+        source.AppendLine("    public static class MagicMcpGeneratedToolRegistrationExtensions");
+        source.AppendLine("    {");
+        source.AppendLine("        public static global::MagicAiGateway.MCP.Package.MagicMcpPackageBuilder AddMcpTools(");
+        source.AppendLine("            this global::MagicAiGateway.MCP.Package.MagicMcpPackageBuilder builder)");
+        source.AppendLine("        {");
+        source.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(builder);");
+
+        foreach (INamedTypeSymbol toolType in validTools)
+        {
+            source.Append("            builder.RegisterGeneratedToolController<");
+            source.Append(toolType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            source.AppendLine(">();");
+        }
+
+        source.AppendLine("            return builder;");
+        source.AppendLine("        }");
+        source.AppendLine("    }");
+        source.AppendLine("}");
+        source.AppendLine();
+        source.AppendLine("namespace MagicAiGateway.MCP.Package.Generated");
+        source.AppendLine("{");
+        source.AppendLine("    internal static class MagicMcpGeneratedBootstrap");
+        source.AppendLine("    {");
+        source.AppendLine("        [global::System.Runtime.CompilerServices.ModuleInitializer]");
+        source.AppendLine("        internal static void Initialize()");
+        source.AppendLine("        {");
+        source.AppendLine("            try");
+        source.AppendLine("            {");
+        source.Append("                var builder = global::MagicAiGateway.MCP.Package.MagicMcpPackageBootstrap.CreateBuilder(typeof(");
+        source.Append(configureType);
+        source.AppendLine(").Assembly);");
+        source.Append("                ");
+        source.Append(configureType);
+        source.Append('.');
+        source.Append(configureMethod);
+        source.AppendLine("(builder);");
+        source.AppendLine("                builder.Build();");
+        source.AppendLine("            }");
+        source.AppendLine("            catch (global::System.Exception exception)");
+        source.AppendLine("            {");
+        source.AppendLine("                global::MagicAiGateway.MCP.Package.MagicMcpPackageBootstrap.RecordConfigurationFailure(exception);");
+        source.AppendLine("            }");
+        source.AppendLine("        }");
+        source.AppendLine("    }");
+        source.AppendLine("}");
+
+        context.AddSource(
+            "MagicMcpPackage.Generated.g.cs",
+            SourceText.From(source.ToString(), Encoding.UTF8));
+    }
+
+    private static bool IsValidConfigurationMethod(IMethodSymbol method)
+    {
+        if (!method.IsStatic ||
+            !method.ReturnsVoid ||
+            method.IsGenericMethod ||
+            method.Parameters.Length != 1 ||
+            method.ContainingType.IsGenericType)
+        {
+            return false;
+        }
+
+        if (method.DeclaredAccessibility is not (
+                Accessibility.Public or
+                Accessibility.Internal or
+                Accessibility.ProtectedOrInternal))
+        {
+            return false;
+        }
+
+        return method.Parameters[0].Type.ToDisplayString() == BuilderTypeName;
+    }
+
+    private static bool DerivesFrom(INamedTypeSymbol type, INamedTypeSymbol expectedBase)
+    {
+        for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
+        {
+            if (SymbolEqualityComparer.Default.Equals(current, expectedBase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
