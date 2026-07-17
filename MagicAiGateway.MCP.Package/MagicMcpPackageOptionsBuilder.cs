@@ -21,9 +21,11 @@ public sealed class MagicMcpPackageOptionsBuilder
     }
 
     /// <summary>
-    /// Adds a UTF-8 JSON manifest file. Relative paths are resolved beside the loaded
-    /// package library. Sources are applied in registration order, so later inline
-    /// configuration may override values loaded from a file.
+    /// Adds a UTF-8 JSON manifest file. Relative paths are resolved against
+    /// <see cref="AppContext.BaseDirectory"/> of the embedding host process. Use an
+    /// absolute path when deployment keeps package metadata elsewhere. Sources are
+    /// applied in registration order, so later inline configuration may override
+    /// values loaded from a file.
     /// </summary>
     public MagicMcpPackageOptionsBuilder AddManifestFile(string path, bool optional = false)
     {
