@@ -1,0 +1,16 @@
+<Project>
+
+    <!--
+      Repository-only development wiring.
+
+      Published consumers receive the generator from the
+      MagicAiGateway.MCP.Package NuGet package under analyzers/dotnet/cs.
+      The template itself intentionally references only the framework project.
+    -->
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'MagicAiGateway.MCP.Package.Template'">
+        <ProjectReference Include="$(MSBuildThisFileDirectory)MagicAiGateway.MCP.Package.Generators/MagicAiGateway.MCP.Package.Generators.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false" />
+    </ItemGroup>
+
+</Project>
