@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>MagicAiGateway.DB.Contracts</PackageId>
+    <Title>Magic AI Gateway Database Contracts</Title>
+    <Description>Shared database API, application authorization, and fabric service contracts for Magic AI Gateway.</Description>
+    <Authors>MagicCodingMan</Authors>
+    <RepositoryUrl>https://github.com/magiccodingman/MagicAiGateway</RepositoryUrl>
+  </PropertyGroup>
+</Project>

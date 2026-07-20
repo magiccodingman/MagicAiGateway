@@ -13,6 +13,7 @@ namespace MagicAiApi.Controllers;
 public sealed class GatewayPairingController(
     GatewayCertificateAuthority authority,
     GatewayPairingRegistry registry,
+    GatewayFabricPeerRegistry fabricPeers,
     PairingChallengeStore challenges,
     IOptions<GatewayOptions> gatewayOptions,
     IOptions<FabricSecurityOptions> securityOptions) : ControllerBase
@@ -43,15 +44,25 @@ public sealed class GatewayPairingController(
                 Message: "Gateway name mismatch."));
         }
 
-        if (!Uri.TryCreate(request.AdvertisedBaseUri, UriKind.Absolute, out var advertised) ||
-            (advertised.Scheme != Uri.UriSchemeHttps && !advertised.IsLoopback))
+        if (!IsSupportedPeerRole(request.PeerRole))
         {
             return BadRequest(new PairingResponse(
                 "rejected",
                 authority.Identity.InstanceId,
                 authority.Identity.ClusterId,
                 gatewayOptions.Value.Name,
-                Message: "The advertised node URI must use HTTPS unless it is loopback."));
+                Message: "The requested fabric peer role is not supported."));
+        }
+
+        if (!Uri.TryCreate(request.AdvertisedBaseUri, UriKind.Absolute, out var advertised) ||
+            advertised.Scheme != Uri.UriSchemeHttps && !advertised.IsLoopback)
+        {
+            return BadRequest(new PairingResponse(
+                "rejected",
+                authority.Identity.InstanceId,
+                authority.Identity.ClusterId,
+                gatewayOptions.Value.Name,
+                Message: "The advertised peer URI must use HTTPS unless it is loopback."));
         }
 
         var enrollmentValidated = securityOptions.Value.PairingMode == PairingMode.EnrollmentToken &&
@@ -67,6 +78,7 @@ public sealed class GatewayPairingController(
         if (!approved)
         {
             registry.AddOrUpdatePending(request);
+            fabricPeers.Record(request.NodeId, request.PeerRole, request.ApplicationId);
             return Accepted(new PairingResponse(
                 "pending",
                 authority.Identity.InstanceId,
@@ -97,6 +109,7 @@ public sealed class GatewayPairingController(
 
         registry.AddOrUpdatePending(request);
         registry.Approve(request.NodeId);
+        fabricPeers.Record(request.NodeId, request.PeerRole, request.ApplicationId);
         var root = authority.RootCertificate.Export(
             System.Security.Cryptography.X509Certificates.X509ContentType.Cert);
         string? gatewayProof = null;
@@ -130,11 +143,7 @@ public sealed class GatewayPairingController(
     [HttpGet("/fabric/v1/pairing")]
     public IActionResult Pending()
     {
-        if (!IsAdministrator())
-        {
-            return Unauthorized();
-        }
-
+        if (!IsAdministrator()) return Unauthorized();
         return Ok(registry.GetAll());
     }
 
@@ -142,15 +151,15 @@ public sealed class GatewayPairingController(
     [HttpPost("/fabric/v1/pairing/{nodeId:guid}/approve")]
     public IActionResult Approve(Guid nodeId)
     {
-        if (!IsAdministrator())
-        {
-            return Unauthorized();
-        }
-
+        if (!IsAdministrator()) return Unauthorized();
         return registry.Approve(nodeId)
             ? Ok(new { nodeId, approved = true })
             : NotFound();
     }
+
+    private static bool IsSupportedPeerRole(string role) =>
+        string.Equals(role, FabricPeerRoles.Node, StringComparison.Ordinal) ||
+        string.Equals(role, FabricPeerRoles.DatabaseApi, StringComparison.Ordinal);
 
     private bool ShouldAutoApprove(PairingRequest request)
     {
@@ -174,22 +183,14 @@ public sealed class GatewayPairingController(
             return true;
         }
 
-        if (string.IsNullOrWhiteSpace(securityOptions.Value.AdminToken))
-        {
-            return false;
-        }
-
+        if (string.IsNullOrWhiteSpace(securityOptions.Value.AdminToken)) return false;
         return Request.Headers.TryGetValue("X-Magic-Admin-Token", out var value) &&
                SecureEquals(value.ToString(), securityOptions.Value.AdminToken);
     }
 
     private static bool SecureEquals(string? left, string? right)
     {
-        if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right))
-        {
-            return false;
-        }
-
+        if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right)) return false;
         var a = System.Text.Encoding.UTF8.GetBytes(left);
         var b = System.Text.Encoding.UTF8.GetBytes(right);
         return a.Length == b.Length && CryptographicOperations.FixedTimeEquals(a, b);

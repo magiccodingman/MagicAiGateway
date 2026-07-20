@@ -79,10 +79,16 @@ jobs:
           --configuration Release
           --no-build
           --filter "Category!=Live"
+      - name: Database foundation tests
+        run: dotnet test MagicAiGateway.DB.Tests/MagicAiGateway.DB.Tests.csproj --configuration Release --no-build
       - name: Pack protocol contracts
         run: dotnet pack MagicAiGateway.Protocol/MagicAiGateway.Protocol.csproj --configuration Release --no-build --output artifacts
       - name: Pack client SDK
         run: dotnet pack MagicAiGateway.Client/MagicAiGateway.Client.csproj --configuration Release --no-build --output artifacts
+      - name: Pack database contracts
+        run: dotnet pack MagicAiGateway.DB.Contracts/MagicAiGateway.DB.Contracts.csproj --configuration Release --no-build --output artifacts
+      - name: Pack database client
+        run: dotnet pack MagicAiGateway.DB.Client/MagicAiGateway.DB.Client.csproj --configuration Release --no-build --output artifacts
       - name: Pack MCP package framework
         run: dotnet pack MagicAiGateway.MCP.Package/MagicAiGateway.MCP.Package.csproj --configuration Release --no-build --output artifacts
       - name: Verify MCP package NuGet contents
